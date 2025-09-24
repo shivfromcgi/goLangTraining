@@ -1,0 +1,47 @@
+****************************************************************************************************
+###### Setup ######
+# Go to your project folder (contains main.go)
+cd /path/to/goLangTraining
+
+# Initialize Go Module
+go mod init cgi.com/goLangTraining
+
+# Build Binary
+go build -o goLangTraining
+
+****************************************************************************************************
+###### Run the App ######
+
+# Option A: Run Directly (no binary)
+go run main.go -user=alice -message="Hello World!"
+
+# Option B: Use Built Binary
+./goLangTraining -user=alice -message="Hello World!"
+
+# ✅ Example Output
+# Last 10 Messages:
+# alice: Hello World!
+# bob: Hi Alice!
+
+****************************************************************************************************
+###### Add more messages ######
+
+./goLangTraining -user=bob -message="Hi Alice!"
+
+****************************************************************************************************
+###### Clear All Messages ######
+
+go run main.go -clear
+# or using the binary
+./goLangTraining -clear
+
+****************************************************************************************************
+****************************************************************************************************
+List : 
+go mod init cgi.com/goLangTraining   # create go.mod
+go build -o goLangTraining           # build binary
+go run main.go -user=alice -message="Hello World!"  # run without binary
+./goLangTraining -user=bob -message="Hi Alice!"     # run binary
+./goLangTraining -clear              # clear all messages
+
+****************************************************************************************************
