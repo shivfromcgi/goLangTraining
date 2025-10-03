@@ -18,7 +18,7 @@ go run main.go -user=alice -message="Hello World!"
 # Option B: Use Built Binary
 ./goLangTraining -user=alice -message="Hello World!"
 
-# ✅ Example Output
+#  Example Output
 # Last 10 Messages:
 # alice: Hello World!
 # bob: Hi Alice!
