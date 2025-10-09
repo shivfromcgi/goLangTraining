@@ -1,0 +1,32 @@
+# Generated files and outputs
+*.txt
+!README.md
+!Commands.txt
+
+# Built binaries
+gotraining
+gotraining-*
+*.exe
+
+# Go build artifacts
+*.out
+*.prof
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+coverage.html
+coverage.out
+
+# Temporary files
+tmp/
+temp/
