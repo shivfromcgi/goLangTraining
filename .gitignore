@@ -1,9 +1,11 @@
-# Generated files and outputs
+# Generated files and outputs (keep messages.txt for functionality)
 *.txt
+!messages.txt
 !README.md
-!Commands.txt
 
-# Built binaries
+# Build directory and binaries
+build/
+go-training-service
 gotraining
 gotraining-*
 *.exe

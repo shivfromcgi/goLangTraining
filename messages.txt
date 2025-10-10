@@ -1,0 +1,5 @@
+alice: Hello World
+test: Final test
+testuser: Hello from simplified architecture
+testapi: Hello from simplified API
+alice: Hello from Makefile
