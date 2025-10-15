@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Training - Static Page</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Go Training Service</h1>
+            <p>Assignment 4 - Static Web Content</p>
+        </header>
+
+        <main class="content">
+            <section class="info-section">
+                <h2>Welcome to Go Training</h2>
+                <p>This is a static HTML page served using Go's embedded file system (go:embed).</p>
+                
+                <h3>Available Features:</h3>
+                <ul>
+                    <li><strong>Assignment 1:</strong> Message System with CLI</li>
+                    <li><strong>Assignment 2:</strong> Advanced Storage with Structured Logging</li>
+                    <li><strong>Assignment 3:</strong> HTTP JSON API</li>
+                    <li><strong>Assignment 4:</strong> Web Pages (Static & Dynamic)</li>
+                </ul>
+            </section>
+
+            <section class="navigation">
+                <h3>Navigation</h3>
+                <div class="nav-links">
+                    <a href="/web/messages" class="nav-button">View Messages</a>
+                    <a href="/messages" class="nav-button">JSON API</a>
+                    <a href="/health" class="nav-button">Health Check</a>
+                </div>
+            </section>
+
+            <section class="usage-section">
+                <h3>How to Use</h3>
+                <div class="code-block">
+                    <h4>Add Messages via CLI:</h4>
+                    <code>go run main.go -assignment=assignment1 -user=alice -message="Hello World"</code>
+                </div>
+                
+                <div class="code-block">
+                    <h4>Start Web Server:</h4>
+                    <code>go run main.go -assignment=assignment4 -port=8080</code>
+                </div>
+
+                <div class="code-block">
+                    <h4>Create Message via API:</h4>
+                    <code>curl -X POST http://localhost:8080/messages -H "Content-Type: application/json" -d '{"user":"alice","message":"Hello API!"}'</code>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2025 Go Training Service - CGI Go Academy</p>
+        </footer>
+    </div>
+</body>
+</html>

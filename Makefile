@@ -1,7 +1,7 @@
 # Go Training Project Makefile
 # This makefile provides common build, test, and maintenance tasks for the simplified project
 
-.PHONY: build test clean fmt lint run help assignment1 assignment2 assignment3
+.PHONY: build test clean fmt lint run help assignment1 assignment2 assignment3 assignment4
 
 # Default target
 help:
@@ -11,10 +11,11 @@ help:
 	@echo "  clean       - Clean build artifacts"
 	@echo "  fmt         - Format all Go code"
 	@echo "  lint        - Run static analysis"
-	@echo "  run         - Run assignment 3 (HTTP server)"
+	@echo "  run         - Run assignment 4 (web pages)"
 	@echo "  assignment1 - Run assignment 1 (message system)"
 	@echo "  assignment2 - Run assignment 2 (storage system)"
 	@echo "  assignment3 - Run assignment 3 (HTTP server)"
+	@echo "  assignment4 - Run assignment 4 (web pages)"
 	@echo "  help        - Show this help message"
 
 # Build the main application
@@ -53,8 +54,8 @@ lint:
 	# Add golangci-lint if available
 	@which golangci-lint > /dev/null && golangci-lint run || echo "golangci-lint not found, skipping"
 
-# Run the HTTP server (Assignment 3)
-run: assignment3
+# Run the web server (Assignment 4)
+run: assignment4
 
 # Assignment targets
 assignment1:
@@ -87,6 +88,19 @@ assignment3:
 		go run main.go -assignment=assignment3 -port=8080; \
 	else \
 		go run main.go -assignment=assignment3 -port=$(PORT); \
+	fi
+
+assignment4:
+	@echo "Running Assignment 4 - Web Pages..."
+	@echo "Usage: make assignment4 PORT=<port>"
+	@echo "Default port: 8080"
+	@echo "Web Pages available at:"
+	@echo "  http://localhost:8080/ - Static home page"
+	@echo "  http://localhost:8080/web/messages - Dynamic messages page"
+	@if [ -z "$(PORT)" ]; then \
+		go run main.go -assignment=assignment4 -port=8080; \
+	else \
+		go run main.go -assignment=assignment4 -port=$(PORT); \
 	fi
 
 # Development targets

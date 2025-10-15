@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Training - Messages</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 2.5em;
+        }
+        .header p {
+            margin: 10px 0 0 0;
+            opacity: 0.9;
+        }
+        .messages-container {
+            background: white;
+            border-radius: 10px;
+            padding: 30px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .messages-title {
+            color: #333;
+            border-bottom: 3px solid #667eea;
+            padding-bottom: 10px;
+            margin-bottom: 25px;
+        }
+        .message {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            border-radius: 0 8px 8px 0;
+            transition: transform 0.2s ease;
+        }
+        .message:hover {
+            transform: translateX(5px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+        .message-user {
+            font-weight: bold;
+            color: #667eea;
+            font-size: 1.1em;
+        }
+        .message-text {
+            margin: 8px 0;
+            color: #333;
+            line-height: 1.6;
+        }
+        .message-time {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+        }
+        .no-messages {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 30px;
+            padding: 20px;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }
+        .api-links {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        .api-links h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .api-links a {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 8px 16px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .api-links a:hover {
+            background: #5a67d8;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Go Training Messages</h1>
+        <p>Assignment 4 - Dynamic Web Pages</p>
+    </div>
+
+    <div class="api-links">
+        <h3>API Endpoints</h3>
+        <a href="/messages" target="_blank">JSON API</a>
+        <a href="/health" target="_blank">Health Check</a>
+        <a href="/static/" target="_blank">Static Files</a>
+    </div>
+
+    <div class="messages-container">
+        <h2 class="messages-title">Last 10 Messages</h2>
+        
+        {{if .Messages}}
+            {{range .Messages}}
+            <div class="message">
+                <div class="message-user">{{.User}}</div>
+                <div class="message-text">{{.Message}}</div>
+                <div class="message-time">{{.Timestamp.Format "2006-01-02 15:04:05"}}</div>
+            </div>
+            {{end}}
+        {{else}}
+            <div class="no-messages">
+                No messages found. Add some messages using the CLI or API!
+            </div>
+        {{end}}
+    </div>
+
+    <div class="footer">
+        <p>Generated at {{.GeneratedAt.Format "2006-01-02 15:04:05"}} | Trace ID: {{.TraceID}}</p>
+        <p>Go Training Service - Assignment 4</p>
+    </div>
+
+    <script>
+        // Auto-refresh every 30 seconds
+        setTimeout(function() {
+            window.location.reload();
+        }, 30000);
+    </script>
+</body>
+</html>

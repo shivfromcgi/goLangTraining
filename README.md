@@ -1,6 +1,6 @@
 # Go Language Training - Simplified Architecture
 
-This project demonstrates a simplified, single-file Go application that implements all three assignments from the CGI Go Academy course. The architecture emphasizes simplicity, stateless functions, and direct flag parsing in main.
+This project demonstrates a simplified, single-file Go application that implements all four assignments from the CGI Go Academy course. The architecture emphasizes simplicity, stateless functions, and direct flag parsing in main.
 
 ## Project Structure
 
@@ -10,6 +10,10 @@ OpenMedia_GoLang_Course/
 ├── go.mod               # Go module file with dependencies
 ├── go.work              # Workspace file for multi-module setup
 ├── Makefile             # Build and run commands
+├── html/                # Web templates and static files (Assignment 4)
+│   ├── index.html       # Static home page
+│   ├── messages.html    # Dynamic messages template
+│   └── styles.css       # CSS stylesheet
 ├── src/pkg/storage/     # Shared storage package (used by Assignment 2)
 │   ├── storage.go       # File operations with structured logging
 │   └── storage_test.go  # Unit tests for storage package
@@ -37,6 +41,17 @@ go run main.go -assignment=assignment3
 go run main.go -assignment=assignment3 -port=9090
 ```
 
+### Running Assignment 4 (Web Pages)
+```bash
+go run main.go -assignment=assignment4
+go run main.go -assignment=assignment4 -port=8080
+
+# Visit these URLs in your browser:
+# http://localhost:8080/             - Static home page
+# http://localhost:8080/web/messages - Dynamic messages page with last 10 messages
+# http://localhost:8080/static/styles.css - CSS stylesheet
+```
+
 ## Makefile Commands
 
 ```bash
@@ -45,9 +60,54 @@ make build         # Build the application
 make assignment1   # Run Assignment 1 with sample data
 make assignment2   # Run Assignment 2 with default settings
 make assignment3   # Run Assignment 3 (HTTP server)
+make assignment4   # Run Assignment 4 (web pages)
 make test          # Run all tests
 make clean         # Clean build artifacts
 ```
+
+## Assignment 4 - Web Pages Features
+
+Assignment 4 extends the project with modern web functionality using Go's embedded file system and HTML templates:
+
+### Core Features Implemented
+
+1. **Static Content Serving**
+   - Uses `//go:embed` to bundle HTML, CSS, and assets at build time
+   - Serves static files via `http.FileServer` with embedded filesystem
+   - Static home page with navigation and usage instructions
+
+2. **Dynamic HTML Templates**
+   - Dynamic messages page showing last 10 messages from `messages.txt`
+   - Uses `html/template` with `template.ParseFS` for embedded templates
+   - Template data includes message history, timestamps, and trace IDs
+
+3. **Modern Web UI**
+   - Responsive CSS with gradient backgrounds and animations
+   - Auto-refresh functionality for real-time message updates
+   - Professional styling with hover effects and smooth transitions
+
+4. **Integrated API Access**
+   - All Assignment 3 JSON API endpoints remain available
+   - Web pages provide links to JSON endpoints for API access
+   - Maintains backward compatibility with existing functionality
+
+### Web Endpoints
+
+| Endpoint | Type | Description |
+|----------|------|-------------|
+| `/` | Static | Home page with navigation and instructions |
+| `/web/messages` | Dynamic | Template-rendered messages page |
+| `/static/styles.css` | Static | CSS stylesheet (via embedded FS) |
+| `/messages` | API | JSON messages endpoint (Assignment 3) |
+| `/health` | API | JSON health check (Assignment 3) |
+
+### Technical Implementation
+
+- **Embedded Files**: Uses `embed.FS` to bundle `html/*` at compile time
+- **Template Parsing**: `template.ParseFS` reads templates from embedded filesystem
+- **Static Serving**: `http.StripPrefix` with `http.FileServer` for CSS/assets
+- **Data Binding**: Template execution with structured `MessagesPageData`
+- **Logging**: Structured logging with trace IDs for all web requests
 
 ## Architecture Principles
 

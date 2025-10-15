@@ -3,3 +3,4 @@ test: Final test
 testuser: Hello from simplified architecture
 testapi: Hello from simplified API
 alice: Hello from Makefile
+demo: Assignment 4 is working!

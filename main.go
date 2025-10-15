@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"context"
+	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"os"
@@ -18,6 +21,11 @@ import (
 
 	"github.com/google/uuid"
 )
+
+// Embedded file systems for Assignment 4
+//
+//go:embed html/*
+var htmlFiles embed.FS
 
 const (
 	gracefulShutdownTimeout = 30 * time.Second
@@ -55,6 +63,13 @@ type HealthStatus struct {
 	Version   string    `json:"version"`
 }
 
+// MessagesPageData represents the data passed to the messages template (Assignment 4)
+type MessagesPageData struct {
+	Messages    []Message `json:"messages"`
+	GeneratedAt time.Time `json:"generated_at"`
+	TraceID     string    `json:"trace_id"`
+}
+
 func main() {
 	// Initialize structured logging first
 	setupLogging()
@@ -64,7 +79,7 @@ func main() {
 		"version", defaultAPIVersion)
 
 	// Parse CLI flags in main - this is where startup and configuration belongs
-	assignmentFlag := flag.String("assignment", "", "Assignment to run: 'assignment1', 'assignment2', or 'assignment3'")
+	assignmentFlag := flag.String("assignment", "", "Assignment to run: 'assignment1', 'assignment2', 'assignment3', or 'assignment4'")
 	userFlag := flag.String("user", "", "User ID for message system (Assignment 1)")
 	messageFlag := flag.String("message", "", "Message to append (Assignment 1)")
 	clearFlag := flag.Bool("clear", false, "Clear all messages (Assignment 1)")
@@ -87,6 +102,8 @@ func main() {
 		err = runAssignment2(*filePathFlag, *dataFlag)
 	case "assignment3":
 		err = runAssignment3(*portFlag)
+	case "assignment4":
+		err = runAssignment4(*portFlag)
 	default:
 		fmt.Printf("Unknown assignment: %s\n", *assignmentFlag)
 		printUsage()
@@ -128,6 +145,10 @@ func printUsage() {
 	fmt.Println("  Assignment 3 - HTTP JSON API:")
 	fmt.Println("    go run main.go -assignment=assignment3")
 	fmt.Println("    go run main.go -assignment=assignment3 -port=<port>")
+	fmt.Println("")
+	fmt.Println("  Assignment 4 - Web Pages:")
+	fmt.Println("    go run main.go -assignment=assignment4")
+	fmt.Println("    go run main.go -assignment=assignment4 -port=<port>")
 }
 
 func runAssignment1(user, message string, clear bool) error {
@@ -250,6 +271,72 @@ func runAssignment3(port int) error {
 	}
 
 	fmt.Println("Assignment 3 HTTP server gracefully stopped")
+	return nil
+}
+
+func runAssignment4(port int) error {
+	fmt.Println("=== Running Assignment 4: Web Pages ===")
+
+	mux := http.NewServeMux()
+
+	// Setup static file server using embedded files
+	staticFS, err := fs.Sub(htmlFiles, "html")
+	if err != nil {
+		return fmt.Errorf("failed to create static filesystem: %w", err)
+	}
+
+	// Static file handler for CSS, JS, and other assets
+	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+
+	// Dynamic HTML page showing last 10 messages
+	mux.HandleFunc("/web/messages", traceMiddleware(webMessagesHandler))
+
+	// Static HTML page
+	mux.HandleFunc("/", traceMiddleware(indexHandler))
+
+	// Keep existing JSON API endpoints from Assignment 3
+	mux.HandleFunc("/messages", traceMiddleware(messagesHandler))
+	mux.HandleFunc("/health", traceMiddleware(healthHandler))
+
+	server := &http.Server{
+		Addr:    ":" + strconv.Itoa(port),
+		Handler: mux,
+	}
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		fmt.Printf("Starting web server on port %d...\n", port)
+		fmt.Printf("Web Pages:\n")
+		fmt.Printf("  GET  http://localhost:%d/ - Static home page\n", port)
+		fmt.Printf("  GET  http://localhost:%d/web/messages - Dynamic messages page\n", port)
+		fmt.Printf("  GET  http://localhost:%d/static/styles.css - Static CSS\n", port)
+		fmt.Printf("\nAPI Endpoints:\n")
+		fmt.Printf("  POST http://localhost:%d/messages - Create a message\n", port)
+		fmt.Printf("  GET  http://localhost:%d/messages - Get all messages (JSON)\n", port)
+		fmt.Printf("  GET  http://localhost:%d/health - Health check\n", port)
+		fmt.Printf("\nPress Ctrl+C to stop the server...\n\n")
+
+		err := server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			slog.Error("Web server failed to start", "error", err, "port", port)
+		}
+	}()
+
+	sig := <-sigChan
+	fmt.Printf("\nReceived signal %s, shutting down web server...\n", sig.String())
+
+	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
+	defer cancel()
+
+	err = server.Shutdown(ctx)
+	if err != nil {
+		slog.Error("Web server shutdown failed", "error", err)
+		return err
+	}
+
+	fmt.Println("Assignment 4 web server gracefully stopped")
 	return nil
 }
 
@@ -476,4 +563,66 @@ func printLast10Messages() error {
 		fmt.Println(line)
 	}
 	return nil
+}
+
+// Assignment 4 web handler functions
+
+func indexHandler(w http.ResponseWriter, r *http.Request) {
+	traceID, _ := r.Context().Value("traceID").(string)
+
+	// Set content type to HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Read and serve the static index.html file
+	indexHTML, err := htmlFiles.ReadFile("html/index.html")
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to read index.html", "error", err, "traceID", traceID)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	slog.InfoContext(r.Context(), "Served static index page", "traceID", traceID)
+	w.Write(indexHTML)
+}
+
+func webMessagesHandler(w http.ResponseWriter, r *http.Request) {
+	traceID, _ := r.Context().Value("traceID").(string)
+
+	// Set content type to HTML
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Get messages data
+	messages, err := readMessagesAsJSON(traceID)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to read messages for web page", "error", err, "traceID", traceID)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Create template data
+	data := MessagesPageData{
+		Messages:    messages,
+		GeneratedAt: time.Now(),
+		TraceID:     traceID,
+	}
+
+	// Parse the template from embedded files
+	tmpl, err := template.ParseFS(htmlFiles, "html/messages.html")
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to parse messages template", "error", err, "traceID", traceID)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	// Execute the template with data
+	err = tmpl.Execute(w, data)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to execute messages template", "error", err, "traceID", traceID)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	slog.InfoContext(r.Context(), "Served dynamic messages page",
+		"message_count", len(messages),
+		"traceID", traceID)
 }
