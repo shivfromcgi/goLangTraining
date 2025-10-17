@@ -1,7 +1,11 @@
 module cgi.com/goLangTraining
 
-go 1.21
+go 1.22
 
-require github.com/google/uuid v1.6.0
+replace cgi.com/goLangTraining/src/pkg/storage => ./src/pkg/storage
 
-require github.com/gorilla/websocket v1.5.3 // indirect
+require (
+	cgi.com/goLangTraining/src/pkg/storage v0.0.0-00010101000000-000000000000
+	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
+)

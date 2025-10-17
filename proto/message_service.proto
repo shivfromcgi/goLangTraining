@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+package message_service;
+
+option go_package = "cgi.com/goLangTraining/proto/message_service";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// Message represents a message in our system
+message Message {
+  int32 id = 1;
+  string user = 2;
+  string message = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  string trace_id = 5;
+}
+
+// SaveMessageRequest contains the data needed to save a new message
+message SaveMessageRequest {
+  string user = 1;
+  string message = 2;
+}
+
+// GetLast10Response contains the list of last 10 messages
+message GetLast10Response {
+  repeated Message messages = 1;
+}
+
+// MessageService defines the gRPC service for message operations
+service MessageService {
+  // Save endpoint that saves a message and returns nothing
+  rpc Save(SaveMessageRequest) returns (google.protobuf.Empty);
+  
+  // GetLast10 returns a list of the last 10 messages
+  rpc GetLast10(google.protobuf.Empty) returns (GetLast10Response);
+}

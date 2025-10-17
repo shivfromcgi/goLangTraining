@@ -1,215 +1,132 @@
-# CGI Go Training Service - Unified Application
+CGI Go Training Service – Unified Application
 
-This project demonstrates a **single cohesive Go application** where all assignments from the CGI Go Academy course are implemented as **features**, not separate modes. The architecture addresses code review feedback by eliminating unnecessary custom types, simplifying storage functions, and creating a unified application structure.
+A single cohesive Go application integrating all CGI Go Academy assignments into one streamlined project.
+This version focuses on simplicity, modularity, and production-grade structure while maintaining easy extensibility.
 
-## Project Structure
+Project Overview
 
-```
+This repository consolidates multiple Go assignments into a single, maintainable codebase with REST, CLI, and gRPC layers.
+
+Key Highlights
+
+Unified architecture across all assignments
+
+Simplified file storage (no custom types)
+
+Integrated REST + gRPC + Web + CLI modes
+
+Structured logging and graceful shutdown
+
+Tested and build-ready via Makefile
+
+Project Structure
 OpenMedia_GoLang_Course/
-├── main.go              # Single unified application with all features
-├── go.mod               # Go module file with dependencies
-├── go.work              # Workspace file for multi-module setup
-├── Makefile             # Build and run commands
-├── src/pkg/storage/     # Simplified storage package
-│   ├── storage.go       # Direct file operations (no custom types)
-│   ├── storage_test.go  # Unit tests for storage package
-│   └── types.go         # Simple metrics struct only
-├── html/                # Web templates for Assignment 4
-│   ├── index.html       # Static home page
-│   ├── messages.html    # Dynamic messages template
-│   └── styles.css       # CSS styling
-├── messages.txt         # Message storage file
-└── README.md           # This file
-```
+├── main.go              # Unified entry point
+├── go.mod               # Dependencies
+├── go.work              # Workspace config
+├── Makefile             # Build & run shortcuts
+├── src/pkg/storage/     # Simplified file storage
+│   ├── storage.go
+│   ├── storage_test.go
+│   └── types.go
+├── html/                # Web templates (Assignment 4)
+│   ├── index.html
+│   ├── messages.html
+│   └── styles.css
+├── messages.txt         # Message storage
+└── README.md
 
-## Key Architectural Improvements
+Setup & Run
+Prerequisites
 
-Based on code review feedback, this version addresses:
+Go 1.22+
 
-1. **❌ Removed Custom FileOperation Type**: No more `FileOperation string` - just use plain strings
-2. **❌ Simplified Storage Functions**: Merged `writeFileContent` into `SaveData` - no unnecessary abstractions  
-3. **✅ Unified Application**: All assignments are features in one cohesive app, not separate modes
-4. **✅ Cleaner Code Structure**: Eliminated redundant helper functions and complex patterns
-4. **✅ Better Readability**: Code is more straightforward and easier to understand
-5. **✅ Single Application Logic**: Features work together instead of being isolated modes
+Make
 
-## Application Modes
+Build & Run
+make build
+make run
 
-### 🖥️ **Default: Unified Web Application** 
-Starts a comprehensive web server with all features integrated:
+Run Web Server
+go run main.go -port=8080
 
-```bash
-# Start with default port (8080)
-go run main.go
-
-# Start with custom port
-go run main.go -port=9090
-```
-
-**Features Available:**
-- 📱 **Web Interface**: Home page and dynamic messages page (Assignment 4)
-- 🔌 **REST API**: Messages, health check, and file operations (Assignments 1, 2, 3)
-- 📊 **Structured Logging**: All operations traced with UUIDs
-- 🛑 **Graceful Shutdown**: Proper cleanup on signal handling
-
-### 🖱️ **CLI Mode**
-Individual feature testing and operations:
-
-```bash
-# Message operations (Assignment 1)
+Run CLI Mode
 go run main.go -cli -user=alice -message='Hello World'
-go run main.go -cli -clear
 
-# Storage demonstration (Assignment 2)  
-go run main.go -cli -storage-demo
-go run main.go -cli -storage-demo -file=test.txt -data='Custom data'
+gRPC Implementation
 
-# Show CLI usage
-go run main.go -cli
-```
+Includes complete gRPC setup with Protocol Buffers.
 
-## API Endpoints
+Quick Start
 
-### 🔌 REST API (All assignments integrated)
+make build-grpc
+make run-grpc-server
+make run-grpc-client
 
-```bash
-# Messages API (Assignment 1 feature)
-GET  /api/messages              # List all messages
-POST /api/messages              # Create new message
-GET  /messages                  # Legacy endpoint
+Component	Description
+proto/	Proto definitions
+server/	gRPC server implementation
+client/	gRPC client module
+Port	:50051
 
-# File Storage API (Assignment 2 feature)
-POST /api/files                 # Save or read files
+REST API Endpoints
+Endpoint	Method	Description
+/api/messages	GET / POST	Retrieve or create messages
+/api/files	POST	Save file data
+/api/health	GET	Health check
+/	GET	Web home
+/web/messages	GET	Dynamic message view
+/static/styles.css	GET	Static CSS file
+🧪 Testing
 
-# Health Check (Assignment 3 feature)
-GET  /api/health                # Service health status
-GET  /health                    # Legacy endpoint
-```
+Run all tests:
 
-### 📱 Web Interface (Assignment 4)
+make test
 
-```bash
-GET  /                          # Static home page
-GET  /web/messages              # Dynamic messages page
-GET  /static/styles.css         # Static assets
-```
 
-## Quick Testing Examples
+Example API test:
 
-```bash
-# Start the unified application
-go run main.go -port=8090
-
-# Test message creation (Assignment 1 via API)
-curl -X POST http://localhost:8090/api/messages \
+curl -X POST http://localhost:8080/api/messages \
   -H 'Content-Type: application/json' \
   -d '{"user":"demo","message":"Hello unified app!"}'
 
-# Test file storage (Assignment 2 via API)
-curl -X POST http://localhost:8090/api/files \
-  -H 'Content-Type: application/json' \
-  -d '{"file_path":"test.txt","data":"Hello storage!","action":"save"}'
+Design Principles
 
-# Test health check (Assignment 3)
-curl http://localhost:8090/api/health
+Simplicity First: Focus on readable, maintainable code
 
-# View web interface (Assignment 4)
-open http://localhost:8090/
-open http://localhost:8090/web/messages
-```
+Single Responsibility: Each function has one purpose
 
-## Usage
+No Premature Abstraction: Use only necessary complexity
 
-### Running Assignment 1 (Message System)
-```bash
-go run main.go -assignment=assignment1 -user=alice -message="Hello World"
-go run main.go -assignment=assignment1 -clear
-```
+Stateless Design: All handlers are independent
 
-### Running Assignment 2 (Advanced Storage)
-```bash
-go run main.go -assignment=assignment2
-go run main.go -assignment=assignment2 -file=custom.txt -data="My custom content"
-```
+Graceful Lifecycle: Clean startup and shutdown
 
-### Running Assignment 3 (HTTP JSON API)
-```bash
-go run main.go -assignment=assignment3
-go run main.go -assignment=assignment3 -port=9090
-```
+Makefile Commands
+Command	Description
+make help	List commands
+make build	Build binary
+make run	Run server
+make test	Run tests
+make assignment1..4	Run specific modules
+make clean	Clean build artifacts
 
-### Running Assignment 4 (Web Pages)
-```bash
-go run main.go -assignment=assignment4
-go run main.go -assignment=assignment4 -port=8080
 
-# Visit these URLs in your browser:
-# http://localhost:8080/             - Static home page
-# http://localhost:8080/web/messages - Dynamic messages page with last 10 messages
-# http://localhost:8080/static/styles.css - CSS stylesheet
-```
+Technologies Used
 
-## Makefile Commands
+Language: Go
 
-```bash
-make help          # Show all available commands
-make build         # Build the application
-make assignment1   # Run Assignment 1 with sample data
-make assignment2   # Run Assignment 2 with default settings
-make assignment3   # Run Assignment 3 (HTTP server)
-make assignment4   # Run Assignment 4 (web pages)
-make test          # Run all tests
-make clean         # Clean build artifacts
-```
+Frameworks: net/http, gRPC
 
-## Assignment 4 - Web Pages Features
+Storage: Local file system
 
-Assignment 4 extends the project with modern web functionality using Go's embedded file system and HTML templates:
+Templates: html/template, embed.FS
 
-### Core Features Implemented
+Testing: go test
 
-1. **Static Content Serving**
-   - Uses `//go:embed` to bundle HTML, CSS, and assets at build time
-   - Serves static files via `http.FileServer` with embedded filesystem
-   - Static home page with navigation and usage instructions
+Build System: Make
 
-2. **Dynamic HTML Templates**
-   - Dynamic messages page showing last 10 messages from `messages.txt`
-   - Uses `html/template` with `template.ParseFS` for embedded templates
-   - Template data includes message history, timestamps, and trace IDs
+License
 
-3. **Modern Web UI**
-   - Responsive CSS with gradient backgrounds and animations
-   - Auto-refresh functionality for real-time message updates
-   - Professional styling with hover effects and smooth transitions
-
-4. **Integrated API Access**
-   - All Assignment 3 JSON API endpoints remain available
-   - Web pages provide links to JSON endpoints for API access
-   - Maintains backward compatibility with existing functionality
-
-### Web Endpoints
-
-| Endpoint | Type | Description |
-|----------|------|-------------|
-| `/` | Static | Home page with navigation and instructions |
-| `/web/messages` | Dynamic | Template-rendered messages page |
-| `/static/styles.css` | Static | CSS stylesheet (via embedded FS) |
-| `/messages` | API | JSON messages endpoint (Assignment 3) |
-| `/health` | API | JSON health check (Assignment 3) |
-
-### Technical Implementation
-
-- **Embedded Files**: Uses `embed.FS` to bundle `html/*` at compile time
-- **Template Parsing**: `template.ParseFS` reads templates from embedded filesystem
-- **Static Serving**: `http.StripPrefix` with `http.FileServer` for CSS/assets
-- **Data Binding**: Template execution with structured `MessagesPageData`
-- **Logging**: Structured logging with trace IDs for all web requests
-
-## Architecture Principles
-
-- **Simplicity First**: Avoid unnecessary abstractions and complex patterns
-- **Single Responsibility**: Each function has a clear, focused purpose
-- **No Premature Abstraction**: Keep things simple until complexity is actually needed
-- **Stateless Design**: HTTP handlers and utilities are stateless functions
-- **Explicit Configuration**: All startup configuration happens in main() function
+This project is developed as part of the CGI Go Academy Training Program.
+Use, modify, and extend for learning purposes.

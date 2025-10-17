@@ -1,6 +1,9 @@
-go 1.21
+go 1.24.0
 
 use (
 	.
+	./client
+	./proto/message_service
 	./src/pkg/storage
+	./store
 )
