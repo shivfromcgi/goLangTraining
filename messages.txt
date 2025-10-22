@@ -17,3 +17,22 @@ demo: Assignment 4 is working!
 [2025-10-16 23:18:40] user6: Message number 6
 [2025-10-16 23:18:40] user7: Message number 7
 [2025-10-16 23:18:40] user8: Message number 8
+[2025-10-22 12:29:50] alice: Testing concurrent message 1
+[2025-10-22 12:30:00] user1: Concurrent message 1
+[2025-10-22 12:30:00] user2: Concurrent message 2
+[2025-10-22 12:30:00] user3: Concurrent message 3
+[2025-10-22 12:30:00] user5: Concurrent message 5
+[2025-10-22 12:30:00] user4: Concurrent message 4
+[2025-10-22 12:44:00] alice: Test message
+[2025-10-22 12:44:09] user1: Concurrent message 1
+[2025-10-22 12:44:18] user2: Concurrent message 2
+[2025-10-22 12:44:26] user3: Concurrent message 3
+[2025-10-22 13:08:44] user1: Concurrent message 1
+[2025-10-22 13:08:44] user2: Concurrent message 2
+[2025-10-22 13:08:44] user3: Concurrent message 3
+[2025-10-22 13:09:20] concurrent_user_2: Message 2 created at 13:09:20
+[2025-10-22 13:09:20] concurrent_user_1: Message 1 created at 13:09:20
+[2025-10-22 13:09:20] concurrent_user_4: Message 4 created at 13:09:20
+[2025-10-22 13:09:20] concurrent_user_5: Message 5 created at 13:09:20
+[2025-10-22 13:09:20] concurrent_user_3: Message 3 created at 13:09:20
+[2025-10-22 13:54:48] testuser: test message
