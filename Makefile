@@ -1,149 +1,174 @@
-# Go Training Project Makefile
-# This makefile provides common build, test, and maintenance tasks for the simplified project
+# CGI Go Training Project Makefile
+# Restructured following coding guidelines with separate services
+# This makefile provides common build, test, and maintenance tasks
 
-.PHONY: build test clean fmt lint run help assignment1 assignment2 assignment3 assignment4 build-grpc run-grpc-server run-grpc-client test-grpc proto-gen
+.PHONY: build test clean fmt lint run help cli api grpc web build-all run-cli run-api run-grpc run-web test-all proto-gen
 
 # Default target
 help:
-	@echo "Go Training Project - Available Commands:"
+	@echo "CGI Go Training Project - Restructured Services"
+	@echo "=============================================="
 	@echo ""
-	@echo "Main Application:"
-	@echo "  build       - Build the main application"
-	@echo "  test        - Run all tests"
-	@echo "  clean       - Clean build artifacts"
+	@echo "Build Commands:"
+	@echo "  build-all   - Build all services using scripts/build.sh"
+	@echo "  cli         - Build CLI service"
+	@echo "  api         - Build API service" 
+	@echo "  grpc        - Build gRPC service"
+	@echo "  web         - Build web service"
+	@echo ""
+	@echo "Run Commands:"
+	@echo "  run-cli     - Run CLI service"
+	@echo "  run-api     - Run API service on port 8080"
+	@echo "  run-grpc    - Run gRPC service"
+	@echo "  run-web     - Run web service on port 8090"
+	@echo ""
+	@echo "Development:"
+	@echo "  test-all    - Run tests across all services"
+	@echo "  clean       - Clean build artifacts" 
 	@echo "  fmt         - Format all Go code"
 	@echo "  lint        - Run static analysis"
-	@echo "  run         - Run assignment 4 (web pages)"
-	@echo ""
-	@echo "Assignment Targets:"
-	@echo "  assignment1 - Run assignment 1 (message system)"
-	@echo "  assignment2 - Run assignment 2 (storage system)"
-	@echo "  assignment3 - Run assignment 3 (HTTP server)"
-	@echo "  assignment4 - Run assignment 4 (web pages)"
-	@echo ""
-	@echo "gRPC Implementation:"
-	@echo "  build-grpc       - Build gRPC server and client"
-	@echo "  run-grpc-server  - Start gRPC message store server"
-	@echo "  run-grpc-client  - Run gRPC client demo"
-	@echo "  test-grpc        - Test gRPC functionality"
-	@echo "  proto-gen        - Generate protobuf files"
+	@echo "  proto-gen   - Generate protobuf files"
 	@echo ""
 	@echo "  help        - Show this help message"
 
-# Build the main application
-build:
-	@echo "Building main application..."
-	go build -o build/go-training-service .
-	@echo "Build complete. Binary available at: ./build/go-training-service"
+# Build all services using scripts
+build-all:
+	@echo "Building all services using scripts/build.sh..."
+	@./scripts/build.sh
 
-# Run all tests across the workspace
-test:
-	@echo "Running tests across workspace..."
+# Build individual services
+cli:
+	@echo "Building CLI service..."
+	cd src/apps/message-cli && go build -o ../../../build/message-cli .
+
+api:
+	@echo "Building API service..."
+	cd src/apps/message-api && go build -o ../../../build/message-api .
+
+grpc:
+	@echo "Building gRPC service..."
+	cd src/apps/message-grpc && go build -o ../../../build/message-grpc .
+	cd src/apps/message-grpc/cmd/client && go build -o ../../../../../build/grpc-client .
+
+web:
+	@echo "Building web service..."
+	cd src/apps/message-web && go build -o ../../../build/message-web .
+
+# Legacy build target
+build: build-all
+
+# Run tests across all services
+test-all:
+	@echo "Running tests across all services..."
 	go work sync
 	cd src/pkg/storage && go test -v ./...
-	go test -v .
+	cd src/pkg/types && go test -v ./... || echo "No tests in types package"
+	@echo "Tests completed for all services"
 
-# Clean build artifacts
+# Legacy test target  
+test: test-all
+
+# Clean build artifacts and temporary files
 clean:
 	@echo "Cleaning build artifacts and temporary files..."
 	rm -rf build/
-	go clean
+	go work sync
 	cd src/pkg/storage && go clean
+	cd src/pkg/types && go clean  
+	cd src/apps/message-cli && go clean
+	cd src/apps/message-api && go clean
+	cd src/apps/message-grpc && go clean
+	cd src/apps/message-web && go clean
 	cd proto/message_service && go clean
-	cd store && go clean  
-	cd client && go clean
 	find . -name "*.log" -not -path "./.git/*" -delete
 	find . -name "*.tmp" -not -path "./.git/*" -delete
 	find . -name "*~" -not -path "./.git/*" -delete
 
-# Format all Go code using gofmt and goimports
+# Format all Go code using gofmt and goimports following guidelines
 fmt:
 	@echo "Formatting code..."
 	go work sync
-	find . -name "*.go" -not -path "./build/*" | xargs gofmt -w
-	find . -name "*.go" -not -path "./build/*" | xargs goimports -w
+	find . -name "*.go" -not -path "./build/*" -not -path "./.git/*" | xargs gofmt -w
+	@which goimports > /dev/null && find . -name "*.go" -not -path "./build/*" -not -path "./.git/*" | xargs goimports -w || echo "goimports not found, skipping"
 
-# Run static analysis
+# Run static analysis following guidelines
 lint:
 	@echo "Running static analysis..."
 	go work sync
-	go vet .
 	cd src/pkg/storage && go vet ./...
-	# Add golangci-lint if available
+	cd src/pkg/types && go vet ./...
+	cd src/apps/message-cli && go vet .
+	cd src/apps/message-api && go vet .
+	cd src/apps/message-grpc && go vet .
+	cd src/apps/message-web && go vet .
 	@which golangci-lint > /dev/null && golangci-lint run || echo "golangci-lint not found, skipping"
+	@which staticcheck > /dev/null && staticcheck ./... || echo "staticcheck not found, skipping"
 
-# Run the web server (Assignment 4)
-run: assignment4
-
-# Assignment targets
-assignment1:
-	@echo "Running Assignment 1 - Message System..."
-	@echo "Usage: make assignment1 USER=<user> MSG=<message>"
-	@echo "Example: make assignment1 USER=alice MSG='Hello World'"
+# Run services following the new structure
+run-cli:
+	@echo "Running CLI service..."
+	@echo "Usage: make run-cli USER=<user> MSG=<message>"
+	@echo "Example: make run-cli USER=alice MSG='Hello World'"
 	@if [ -z "$(USER)" ] || [ -z "$(MSG)" ]; then \
 		echo "Running with sample data..."; \
-		go run main.go -assignment=assignment1 -user=sample -message="Sample message from Makefile"; \
+		cd src/apps/message-cli && go run . -user=sample -message="Sample CLI message"; \
 	else \
-		go run main.go -assignment=assignment1 -user=$(USER) -message="$(MSG)"; \
+		cd src/apps/message-cli && go run . -user=$(USER) -message="$(MSG)"; \
 	fi
 
-assignment2:
-	@echo "Running Assignment 2 - Storage System..."
-	@echo "Usage: make assignment2 FILE=<file> DATA=<data>"
-	@echo "Example: make assignment2 FILE=test.txt DATA='Hello Storage'"
-	@if [ -z "$(FILE)" ]; then \
-		echo "Running with default file..."; \
-		go run main.go -assignment=assignment2; \
-	else \
-		go run main.go -assignment=assignment2 -file=$(FILE) -data="$(DATA)"; \
-	fi
-
-assignment3:
-	@echo "Running Assignment 3 - HTTP Server..."
-	@echo "Usage: make assignment3 PORT=<port>"
+run-api:
+	@echo "Running API service..."
+	@echo "Usage: make run-api PORT=<port>"
 	@echo "Default port: 8080"
+	@echo "API endpoints available at:"
+	@echo "  http://localhost:8080/api/v1/messages - JSON API"
+	@echo "  http://localhost:8080/api/v1/health - Health check"
 	@if [ -z "$(PORT)" ]; then \
-		go run main.go -assignment=assignment3 -port=8080; \
+		cd src/apps/message-api && go run . -port=8080; \
 	else \
-		go run main.go -assignment=assignment3 -port=$(PORT); \
+		cd src/apps/message-api && go run . -port=$(PORT); \
 	fi
 
-assignment4:
-	@echo "Running Assignment 4 - Web Pages..."
-	@echo "Usage: make assignment4 PORT=<port>"
-	@echo "Default port: 8080"
-	@echo "Web Pages available at:"
-	@echo "  http://localhost:8080/ - Static home page"
-	@echo "  http://localhost:8080/web/messages - Dynamic messages page"
+run-grpc:
+	@echo "Running gRPC service..."
+	@echo "gRPC server will start on port :50051"
+	@echo "Use 'make run-grpc-client' to test"
+	cd src/apps/message-grpc && go run .
+
+run-web:
+	@echo "Running web service..."
+	@echo "Usage: make run-web PORT=<port>"
+	@echo "Default port: 8090"
+	@echo "Web pages available at:"
+	@echo "  http://localhost:8090/ - Static home page" 
+	@echo "  http://localhost:8090/messages - Dynamic messages page"
 	@if [ -z "$(PORT)" ]; then \
-		go run main.go -assignment=assignment4 -port=8080; \
+		cd src/apps/message-web && go run . -port=8090; \
 	else \
-		go run main.go -assignment=assignment4 -port=$(PORT); \
+		cd src/apps/message-web && go run . -port=$(PORT); \
 	fi
 
-# gRPC targets
-build-grpc:
-	@echo "Building gRPC components..."
-	cd store && go build -o ../build/grpc-store-server .
-	cd client && go build -o ../build/grpc-client .
-	@echo "gRPC build complete:"
-	@echo "  Server: ./build/grpc-store-server"
-	@echo "  Client: ./build/grpc-client"
+# Legacy run target defaults to API
+run: run-api
 
-run-grpc-server:
-	@echo "Starting gRPC Message Store Server..."
-	cd store && go run .
-
+# gRPC specific targets
 run-grpc-client:
-	@echo "Running gRPC Client demo..."
-	cd client && go run .
+	@echo "Running gRPC Client..."
+	@echo "Usage: make run-grpc-client USER=<user> MSG=<message>"
+	@echo "Example: make run-grpc-client USER=alice MSG='Hello gRPC!'"
+	@if [ -z "$(USER)" ] || [ -z "$(MSG)" ]; then \
+		echo "Running gRPC client demo..."; \
+		cd src/apps/message-grpc/cmd/client && go run .; \
+	else \
+		cd src/apps/message-grpc/cmd/client && go run . -user=$(USER) -message="$(MSG)"; \
+	fi
 
 test-grpc:
 	@echo "Testing gRPC functionality..."
 	@echo "1. Save a message:"
-	cd client && go run . -user=test -message="Makefile test message"
+	cd src/apps/message-grpc/cmd/client && go run . -user=test -message="Makefile test message"
 	@echo "2. Get messages:"
-	cd client && go run . -get
+	cd src/apps/message-grpc/cmd/client && go run . -get
 
 proto-gen:
 	@echo "Generating protobuf files..."
@@ -162,5 +187,3 @@ deps:
 	go mod tidy
 	cd src/pkg/storage && go mod tidy
 	cd proto/message_service && go mod tidy
-	cd store && go mod tidy
-	cd client && go mod tidy

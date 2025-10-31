@@ -1,132 +1,236 @@
-CGI Go Training Service – Unified Application
+CGI Go Training Service – Restructured Architecture
 
-A single cohesive Go application integrating all CGI Go Academy assignments into one streamlined project.
-This version focuses on simplicity, modularity, and production-grade structure while maintaining easy extensibility.
+A modular Go application following coding guidelines with separate services for CLI, API, gRPC, and Web interfaces.
+This restructured version follows proper Go project organization, separation of concerns, and production-ready patterns.
 
-Project Overview
+## Project Overview
 
-This repository consolidates multiple Go assignments into a single, maintainable codebase with REST, CLI, and gRPC layers.
+This repository has been restructured following coding guidelines to provide:
+- **Separate Services**: CLI, API, gRPC, and Web services as independent applications
+- **Shared Libraries**: Common types and storage functionality in `src/pkg/`
+- **Proper Structure**: Following recommended Go project layout patterns
+- **Build Automation**: Scripts and Makefile for streamlined development
 
-Key Highlights
+## Key Features
 
-Unified architecture across all assignments
+✅ **Modular Architecture**: Each service is independent and focused  
+✅ **Shared Packages**: Common functionality in `src/pkg/`  
+✅ **Coding Guidelines**: Follows established Go best practices  
+✅ **Build Scripts**: Automated build and deployment scripts  
+✅ **Multiple Interfaces**: CLI, REST API, gRPC, and Web UI  
+✅ **Production Ready**: Structured logging, health checks, graceful shutdown  
 
-Simplified file storage (no custom types)
+## Project Structure
 
-Integrated REST + gRPC + Web + CLI modes
-
-Structured logging and graceful shutdown
-
-Tested and build-ready via Makefile
-
-Project Structure
+```
 OpenMedia_GoLang_Course/
-├── main.go              # Unified entry point
-├── go.mod               # Dependencies
-├── go.work              # Workspace config
-├── Makefile             # Build & run shortcuts
-├── src/pkg/storage/     # Simplified file storage
-│   ├── storage.go
-│   ├── storage_test.go
-│   └── types.go
-├── html/                # Web templates (Assignment 4)
-│   ├── index.html
-│   ├── messages.html
-│   └── styles.css
-├── messages.txt         # Message storage
-└── README.md
+├── scripts/                    # Build and automation scripts
+│   ├── build.sh               # Main build script
+│   └── Dockerfile             # Container build definition
+├── src/
+│   ├── apps/                  # Individual services
+│   │   ├── message-cli/       # CLI service
+│   │   ├── message-api/       # REST API service
+│   │   ├── message-grpc/      # gRPC service with client
+│   │   └── message-web/       # Web interface service
+│   └── pkg/                   # Shared packages
+│       ├── storage/           # Message storage functionality
+│       └── types/             # Shared type definitions
+├── proto/                     # Protocol buffer definitions
+├── build/                     # Compiled binaries (generated)
+├── go.work                    # Go workspace configuration
+├── Makefile                   # Build and run tasks
+└── README.md                  # This file
+```
 
-Setup & Run
-Prerequisites
+## Prerequisites
 
-Go 1.22+
+- **Go 1.22+**
+- **Make** (for build automation)
+- **Protocol Buffers** (for gRPC development)
 
-Make
+## Quick Start
 
-Build & Run
-make build
-make run
+### Build All Services
+```bash
+# Use automated build script
+make build-all
+# or
+./scripts/build.sh
+```
 
-Run Web Server
-go run main.go -port=8080
+### Run Individual Services
 
-Run CLI Mode
-go run main.go -cli -user=alice -message='Hello World'
+#### CLI Service
+```bash
+# Run CLI service directly
+make run-cli USER=alice MSG="Hello CLI!"
 
-gRPC Implementation
+# Or build and run binary
+make cli
+./build/message-cli -user=alice -message="Hello CLI!"
+```
 
-Includes complete gRPC setup with Protocol Buffers.
+#### API Service
+```bash
+# Run API service (default port 8080)
+make run-api
 
-Quick Start
+# Or with custom port
+make run-api PORT=9000
 
-make build-grpc
-make run-grpc-server
-make run-grpc-client
+# Or build and run binary
+make api
+./build/message-api -port=8080
+```
 
-Component	Description
-proto/	Proto definitions
-server/	gRPC server implementation
-client/	gRPC client module
-Port	:50051
+#### gRPC Service
+```bash
+# Start gRPC server (port :50051)
+make run-grpc
 
-REST API Endpoints
-Endpoint	Method	Description
-/api/messages	GET / POST	Retrieve or create messages
-/api/files	POST	Save file data
-/api/health	GET	Health check
-/	GET	Web home
-/web/messages	GET	Dynamic message view
-/static/styles.css	GET	Static CSS file
-🧪 Testing
+# Test with gRPC client
+make run-grpc-client USER=alice MSG="Hello gRPC!"
 
-Run all tests:
+# Or build and run binaries
+make grpc
+./build/message-grpc &
+./build/grpc-client -user=alice -message="Hello gRPC!"
+```
 
-make test
+#### Web Service
+```bash
+# Run web service (default port 8090)
+make run-web
 
+# Or with custom port  
+make run-web PORT=8000
 
-Example API test:
+# Or build and run binary
+make web
+./build/message-web -port=8090
+```
 
-curl -X POST http://localhost:8080/api/messages \
-  -H 'Content-Type: application/json' \
-  -d '{"user":"demo","message":"Hello unified app!"}'
+## Service Details
 
-Design Principles
+### CLI Service (`src/apps/message-cli/`)
+- **Purpose**: Command-line message operations
+- **Features**: Add messages, clear messages, list messages
+- **Usage**: `./build/message-cli -user=alice -message="Hello!"`
 
-Simplicity First: Focus on readable, maintainable code
+### API Service (`src/apps/message-api/`)
+- **Purpose**: REST API for message management
+- **Port**: 8080 (default)
+- **Endpoints**:
+  - `GET /api/v1/messages` - Retrieve messages
+  - `POST /api/v1/messages` - Create message
+  - `GET /api/v1/health` - Health check
+- **Example**:
+  ```bash
+  curl -X POST http://localhost:8080/api/v1/messages \
+    -H 'Content-Type: application/json' \
+    -d '{"user":"alice","message":"Hello API!"}'
+  ```
 
-Single Responsibility: Each function has one purpose
+### gRPC Service (`src/apps/message-grpc/`)
+- **Purpose**: gRPC server and client for message operations
+- **Port**: :50051
+- **Services**: `Save`, `GetLast10`
+- **Client**: Located in `cmd/client/`
 
-No Premature Abstraction: Use only necessary complexity
+### Web Service (`src/apps/message-web/`)
+- **Purpose**: Web interface for viewing messages
+- **Port**: 8090 (default)  
+- **Pages**:
+  - `/` - Static home page
+  - `/messages` - Dynamic message listing
+  - `/health` - Health check
 
-Stateless Design: All handlers are independent
+## Testing
 
-Graceful Lifecycle: Clean startup and shutdown
+```bash
+# Run all tests
+make test-all
 
-Makefile Commands
-Command	Description
-make help	List commands
-make build	Build binary
-make run	Run server
-make test	Run tests
-make assignment1..4	Run specific modules
-make clean	Clean build artifacts
+# Test gRPC functionality
+make test-grpc
+```
 
+## Development
 
-Technologies Used
+### Code Formatting
+```bash
+# Format all Go code
+make fmt
 
-Language: Go
+# Run static analysis  
+make lint
+```
 
-Frameworks: net/http, gRPC
+### Building Docker Images
+```bash
+# Build container using provided Dockerfile
+docker build -f scripts/Dockerfile -t go-training-services .
 
-Storage: Local file system
+# Run containerized API service
+docker run -p 8080:8080 go-training-services
+```
 
-Templates: html/template, embed.FS
+## Architecture Highlights
 
-Testing: go test
+### Design Principles
+- **Separation of Concerns**: Each service has a single responsibility
+- **Shared Libraries**: Common functionality in `src/pkg/`  
+- **Following Guidelines**: Adheres to established Go coding standards
+- **Modular Structure**: Easy to extend and maintain
+- **Production Ready**: Structured logging, health checks, graceful shutdown
 
-Build System: Make
+### Service Independence
+Each service in `src/apps/` is:
+- **Self-contained**: Has its own `go.mod` and dependencies
+- **Independently Deployable**: Can be built and run separately
+- **Focused**: Single responsibility (CLI, API, gRPC, or Web)
+- **Testable**: Individual testing and validation
 
-License
+### Shared Packages
+- **`src/pkg/types/`**: Common data structures and types
+- **`src/pkg/storage/`**: Message storage functionality
+- **Protocol Buffers**: Shared gRPC definitions in `proto/`
+
+## Makefile Commands
+
+| Command | Description |
+|---------|-------------|
+| `make help` | Show all available commands |
+| `make build-all` | Build all services |
+| `make run-cli` | Run CLI service |
+| `make run-api` | Run API service |
+| `make run-grpc` | Run gRPC service |
+| `make run-web` | Run web service |
+| `make test-all` | Run all tests |
+| `make clean` | Clean build artifacts |
+| `make fmt` | Format code |
+| `make lint` | Run static analysis |
+
+## Technologies Used
+
+- **Language**: Go 1.22+
+- **Frameworks**: gorilla/mux, gRPC, html/template
+- **Storage**: File-based message storage
+- **Build**: Make, shell scripts, Docker
+- **Testing**: go test, testify
+- **Protocols**: HTTP REST, gRPC, Protocol Buffers
+
+## Project Status
+
+This restructured version addresses the review feedback:
+- ✅ **Proper folder structure** following coding guidelines
+- ✅ **Separated CLI, API, gRPC, and Web** into individual services
+- ✅ **Removed empty files** (`main`, `goLangTraining`)
+- ✅ **Clear gRPC client/server** organization in `message-grpc/`
+- ✅ **Follows coding standards** for Go project layout
+
+## License
 
 This project is developed as part of the CGI Go Academy Training Program.
 Use, modify, and extend for learning purposes.

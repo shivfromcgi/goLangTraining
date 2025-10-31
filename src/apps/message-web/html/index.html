@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Training - Static Page</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .nav-links a {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin: 5px;
+            transition: background-color 0.3s ease;
+        }
+        .nav-links a:hover {
+            background: #5a67d8;
+        }
+        .code-block {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .code-block code {
+            font-family: 'Monaco', 'Courier New', monospace;
+            background: #e9ecef;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>Go Training Service</h1>
+            <p>Restructured Application - Web Interface</p>
+        </header>
+
+        <main class="content">
+            <section class="info-section">
+                <h2>Welcome to Go Training</h2>
+                <p>This is a static HTML page served using Go's embedded file system (go:embed).</p>
+                
+                <h3>Available Services:</h3>
+                <ul>
+                    <li><strong>Message CLI:</strong> Command-line message operations</li>
+                    <li><strong>Message API:</strong> REST API for message management</li>
+                    <li><strong>Message Web:</strong> Web interface for messages</li>
+                    <li><strong>Message gRPC:</strong> gRPC service with client</li>
+                </ul>
+            </section>
+
+            <section class="navigation">
+                <h3>Navigation</h3>
+                <div class="nav-links">
+                    <a href="/messages">View Messages</a>
+                    <a href="/api/messages">JSON API</a>
+                    <a href="/health">Health Check</a>
+                </div>
+            </section>
+
+            <section class="usage-section">
+                <h3>How to Use</h3>
+                <div class="code-block">
+                    <h4>CLI Service:</h4>
+                    <code>cd src/apps/message-cli && go run . -user=alice -message="Hello World"</code>
+                </div>
+                
+                <div class="code-block">
+                    <h4>API Service:</h4>
+                    <code>cd src/apps/message-api && go run . -port=8080</code>
+                </div>
+
+                <div class="code-block">
+                    <h4>Web Service:</h4>
+                    <code>cd src/apps/message-web && go run . -port=8090</code>
+                </div>
+
+                <div class="code-block">
+                    <h4>gRPC Service:</h4>
+                    <code>cd src/apps/message-grpc && go run .</code>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <p>&copy; 2025 Go Training Service - CGI Go Academy - Restructured</p>
+        </footer>
+    </div>
+</body>
+</html>

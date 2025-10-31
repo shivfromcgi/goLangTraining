@@ -2,8 +2,11 @@ go 1.24.0
 
 use (
 	.
-	./client
 	./proto/message_service
+	./src/apps/message-api
+	./src/apps/message-cli
+	./src/apps/message-grpc
+	./src/apps/message-web
 	./src/pkg/storage
-	./store
+	./src/pkg/types
 )
