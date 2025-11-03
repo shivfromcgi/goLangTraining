@@ -31,7 +31,7 @@ func (ms *MessageStorage) AddMessage(user, message string) error {
 	}
 	defer f.Close()
 
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
+	timestamp := time.Now().UTC().Format(time.RFC3339)
 	line := fmt.Sprintf("[%s] %s: %s\n", timestamp, user, message)
 	_, err = f.WriteString(line)
 	return err
@@ -54,17 +54,28 @@ func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) 
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		if line != "" {
-			// Parse format: [timestamp] user: message
-			message := ms.parseMessageLine(line, id, traceID)
-			if message != nil {
-				messages = append(messages, *message)
-				id++
-			}
+
+		// Skip empty lines
+		if line == "" {
+			continue
 		}
+
+		// Parse format: [timestamp] user: message
+		message := ms.parseMessageLine(line, id, traceID)
+		if message == nil {
+			continue
+		}
+
+		messages = append(messages, *message)
+		id++
 	}
 
-	return messages, scanner.Err()
+	// Explicitly check for scanner errors
+	if err := scanner.Err(); err != nil {
+		return []types.Message{}, err
+	}
+
+	return messages, nil
 }
 
 // ClearMessages removes all messages from storage
@@ -88,10 +99,14 @@ func (ms *MessageStorage) parseMessageLine(line string, id int, traceID string) 
 	user := strings.TrimSpace(matches[2])
 	messageText := strings.TrimSpace(matches[3])
 
-	timestamp, err := time.Parse("2006-01-02 15:04:05", timestampStr)
+	timestamp, err := time.Parse(time.RFC3339, timestampStr)
 	if err != nil {
-		// If timestamp parsing fails, use current time
-		timestamp = time.Now()
+		// Try parsing old format for backward compatibility
+		timestamp, err = time.Parse("2006-01-02 15:04:05", timestampStr)
+		if err != nil {
+			// If timestamp parsing fails, use current time in UTC
+			timestamp = time.Now().UTC()
+		}
 	}
 
 	return &types.Message{

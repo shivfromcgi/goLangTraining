@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"time"
 
 	"cgi.com/goLangTraining/src/pkg/storage"
 )
@@ -23,12 +24,9 @@ func main() {
 
 	// Parse command line flags following guidelines - declare at top
 	var (
-		user        = flag.String("user", "", "User for CLI message operations")
-		message     = flag.String("message", "", "Message for CLI operations")
-		clear       = flag.Bool("clear", false, "Clear all messages")
-		file        = flag.String("file", "example.txt", "File path for storage operations")
-		data        = flag.String("data", "", "Data to save to file")
-		storageDemo = flag.Bool("storage-demo", false, "Run storage demonstration")
+		user    = flag.String("user", "", "User for CLI message operations")
+		message = flag.String("message", "", "Message for CLI operations")
+		clear   = flag.Bool("clear", false, "Clear all messages")
 	)
 	flag.Parse()
 
@@ -36,7 +34,7 @@ func main() {
 	messageStorage := storage.NewMessageStorage(messagesFileName)
 
 	// Handle CLI operations and exit
-	handleCLIOperations(*user, *message, *clear, *file, *data, *storageDemo, messageStorage)
+	handleCLIOperations(*user, *message, *clear, messageStorage)
 }
 
 // setupLogging configures the default slog logger following guidelines
@@ -52,27 +50,10 @@ func setupLogging() {
 }
 
 // handleCLIOperations processes command-line operations following guidelines
-func handleCLIOperations(user, message string, clear bool, file, data string, storageDemo bool, storage *storage.MessageStorage) {
+func handleCLIOperations(user, message string, clear bool, storage *storage.MessageStorage) {
 	fmt.Println("=== CGI Message CLI Service ===")
 
-	// Handle storage demo (Assignment 2 functionality)
-	if storageDemo {
-		runStorageDemo(file, data)
-		return
-	}
-
-	// Clear messages if requested - return early following guidelines
-	if clear {
-		err := storage.ClearMessages()
-		if err != nil {
-			fmt.Printf("❌ Error clearing messages: %v\n", err)
-			return
-		}
-		fmt.Println("✅ All messages cleared")
-		return
-	}
-
-	// Add new message if provided
+	// Add new message first if provided
 	if user != "" && message != "" {
 		err := storage.AddMessage(user, message)
 		if err != nil {
@@ -80,6 +61,21 @@ func handleCLIOperations(user, message string, clear bool, file, data string, st
 			return
 		}
 		fmt.Printf("✅ Message added: %s: %s\n", user, message)
+	}
+
+	// Clear messages if requested (after adding new message)
+	if clear {
+		err := storage.ClearMessages()
+		if err != nil {
+			fmt.Printf("❌ Error clearing messages: %v\n", err)
+			return
+		}
+		fmt.Println("✅ All messages cleared")
+
+		// If we only cleared messages, don't show the message list
+		if user == "" || message == "" {
+			return
+		}
 	}
 
 	// Show last messages
@@ -97,21 +93,8 @@ func handleCLIOperations(user, message string, clear bool, file, data string, st
 	fmt.Printf("\n📨 Last %d Messages:\n", len(messages))
 	for _, msg := range messages {
 		fmt.Printf("  [%s] %s: %s\n",
-			msg.Timestamp.Format("2006-01-02 15:04:05"),
+			msg.Timestamp.UTC().Format(time.RFC3339),
 			msg.User,
 			msg.Message)
-	}
-}
-
-// runStorageDemo demonstrates storage package functionality
-func runStorageDemo(file, data string) {
-	fmt.Printf("=== Storage Package Demo ===\n")
-	fmt.Printf("File: %s\n", file)
-
-	if data != "" {
-		fmt.Printf("Data to save: %s\n", data)
-		fmt.Println("✅ Storage demo completed (placeholder)")
-	} else {
-		fmt.Println("ℹ️ No data provided to save")
 	}
 }
