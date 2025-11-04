@@ -4,7 +4,8 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
+	"log/slog"
+	"os"
 	"time"
 
 	pb "cgi.com/goLangTraining/proto/message_service"
@@ -29,7 +30,8 @@ func main() {
 
 	conn, err := grpc.Dial(*serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Failed to connect to server: %v", err)
+		slog.Error("Failed to connect to server", "error", err, "serverAddr", *serverAddr)
+		os.Exit(1)
 	}
 	defer conn.Close()
 
@@ -40,7 +42,8 @@ func main() {
 	if *getLast10 {
 		err := getMessages(client)
 		if err != nil {
-			log.Fatalf("Failed to get messages: %v", err)
+			slog.Error("Failed to get messages", "error", err)
+			os.Exit(1)
 		}
 		return
 	}
@@ -48,7 +51,16 @@ func main() {
 	if *user != "" && *message != "" {
 		err := saveMessage(client, *user, *message)
 		if err != nil {
-			log.Fatalf("Failed to save message: %v", err)
+			slog.Error("Failed to save message", "error", err)
+			os.Exit(1)
+		}
+
+		// After saving, automatically show last 10 messages as per reviewer feedback
+		fmt.Printf("\n📨 Fetching updated messages after save...\n")
+		err = getMessages(client)
+		if err != nil {
+			slog.Error("Failed to get messages after save", "error", err)
+			os.Exit(1)
 		}
 		return
 	}
@@ -119,13 +131,15 @@ func runDemo(client pb.MessageServiceClient) {
 	fmt.Printf("\n1️⃣ Saving demo message...\n")
 	err := saveMessage(client, demoUser, demoMessage)
 	if err != nil {
-		log.Fatalf("Demo failed - save message: %v", err)
+		slog.Error("Demo failed - save message", "error", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("\n2️⃣ Getting last 10 messages...\n")
 	err = getMessages(client)
 	if err != nil {
-		log.Fatalf("Demo failed - get messages: %v", err)
+		slog.Error("Demo failed - get messages", "error", err)
+		os.Exit(1)
 	}
 
 	fmt.Println("\n✅ gRPC client operation completed successfully!")

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"os"
@@ -15,7 +14,6 @@ import (
 
 const (
 	port              = ":50051"
-	messagesFileName  = "messages.txt"
 	defaultAPIVersion = "1.0.0"
 )
 
@@ -26,13 +24,14 @@ func main() {
 		"service", "message-grpc",
 		"version", defaultAPIVersion)
 
-	// Initialize services in main following guidelines
-	messageStorage := storage.NewMessageStorage(messagesFileName)
+	// Use default storage following guidelines
+	messageStorage := storage.GetDefaultStorage()
 
 	// Create TCP listener
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
-		log.Fatalf("Failed to listen: %v", err)
+		slog.Error("Failed to listen", "error", err, "port", port)
+		os.Exit(1)
 	}
 
 	// Create gRPC server
@@ -56,7 +55,8 @@ func main() {
 
 	// Start server
 	if err := s.Serve(lis); err != nil {
-		log.Fatalf("Failed to serve: %v", err)
+		slog.Error("Failed to serve", "error", err)
+		os.Exit(1)
 	}
 }
 

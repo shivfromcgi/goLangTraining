@@ -14,7 +14,6 @@ import (
 
 	"cgi.com/goLangTraining/src/apps/message-web/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/storage"
-	"github.com/gorilla/mux"
 )
 
 // Embedded file systems for web interface
@@ -26,7 +25,6 @@ const (
 	gracefulShutdownTimeout = 30 * time.Second
 	defaultAPIVersion       = "1.0.0"
 	defaultPort             = 8090
-	messagesFileName        = "messages.txt"
 )
 
 func main() {
@@ -39,8 +37,8 @@ func main() {
 	port := flag.Int("port", defaultPort, "Port for HTTP server")
 	flag.Parse()
 
-	// Initialize services in main following guidelines
-	messageStorage := storage.NewMessageStorage(messagesFileName)
+	// Use default storage following guidelines
+	messageStorage := storage.GetDefaultStorage()
 
 	startWebServer(*port, messageStorage)
 }
@@ -57,21 +55,21 @@ func setupLogging() {
 	slog.SetDefault(logger)
 }
 
-// startWebServer starts the web server with proper mux routing
+// startWebServer starts the web server with ServeMux routing
 func startWebServer(port int, messageStorage *storage.MessageStorage) {
 	webHandler := handler.NewWebHandler(messageStorage, htmlFiles)
 
-	// Use mux as per guidelines, not standard http
-	router := mux.NewRouter()
+	// Use ServeMux for consistency with API service
+	mux := http.NewServeMux()
 
 	// Web interface routes
-	router.HandleFunc("/", handler.TraceMiddleware(webHandler.IndexHandler)).Methods("GET")
-	router.HandleFunc("/messages", handler.TraceMiddleware(webHandler.MessagesHandler)).Methods("GET")
-	router.HandleFunc("/health", handler.TraceMiddleware(webHandler.HealthHandler)).Methods("GET")
+	mux.HandleFunc("/", handler.TraceMiddleware(webHandler.IndexHandler))
+	mux.HandleFunc("/messages", handler.TraceMiddleware(webHandler.MessagesHandler))
+	mux.HandleFunc("/health", handler.TraceMiddleware(webHandler.HealthHandler))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      router,
+		Handler:      mux,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

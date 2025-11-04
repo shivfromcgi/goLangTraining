@@ -6,17 +6,36 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"cgi.com/goLangTraining/src/pkg/types"
 )
+
+const defaultMessagesFileName = "messages.txt"
 
 // MessageStorage handles persistent storage of messages
 type MessageStorage struct {
 	filename string
 }
 
-// NewMessageStorage creates a new message storage instance
+var (
+	defaultStorage *MessageStorage
+	once           sync.Once
+)
+
+// GetDefaultStorage returns the default message storage instance (singleton)
+func GetDefaultStorage() *MessageStorage {
+	once.Do(func() {
+		defaultStorage = &MessageStorage{
+			filename: defaultMessagesFileName,
+		}
+	})
+	return defaultStorage
+}
+
+// NewMessageStorage creates a new message storage instance with custom filename
+// This is kept for backward compatibility and testing purposes
 func NewMessageStorage(filename string) *MessageStorage {
 	return &MessageStorage{
 		filename: filename,

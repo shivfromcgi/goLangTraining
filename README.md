@@ -215,7 +215,7 @@ Each service in `src/apps/` is:
 ## Technologies Used
 
 - **Language**: Go 1.22+
-- **Frameworks**: gorilla/mux, gRPC, html/template
+- **Frameworks**: http.ServeMux, gRPC, html/template
 - **Storage**: File-based message storage
 - **Build**: Make, shell scripts, Docker
 - **Testing**: go test, testify

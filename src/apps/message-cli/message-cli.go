@@ -12,7 +12,6 @@ import (
 
 const (
 	defaultAPIVersion = "1.0.0"
-	messagesFileName  = "messages.txt"
 )
 
 func main() {
@@ -30,8 +29,8 @@ func main() {
 	)
 	flag.Parse()
 
-	// Initialize storage in main following guidelines
-	messageStorage := storage.NewMessageStorage(messagesFileName)
+	// Use default storage following guidelines
+	messageStorage := storage.GetDefaultStorage()
 
 	// Handle CLI operations and exit
 	handleCLIOperations(*user, *message, *clear, messageStorage)
