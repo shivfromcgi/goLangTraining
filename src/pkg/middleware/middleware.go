@@ -10,7 +10,7 @@ import (
 
 type contextKey string
 
-const traceIDKey contextKey = "traceID"
+const TraceIDKey contextKey = "traceID"
 
 // TraceMiddleware creates trace ID from headers or generates new one
 func TraceMiddleware(next http.Handler) http.Handler {
@@ -23,7 +23,7 @@ func TraceMiddleware(next http.Handler) http.Handler {
 		}
 
 		// Add trace ID to context
-		ctx := context.WithValue(r.Context(), traceIDKey, traceID)
+		ctx := context.WithValue(r.Context(), TraceIDKey, traceID)
 
 		// Set trace ID in response headers
 		w.Header().Set("X-Trace-ID", traceID)
@@ -41,8 +41,31 @@ func TraceMiddleware(next http.Handler) http.Handler {
 
 // GetTraceID extracts trace ID from context
 func GetTraceID(ctx context.Context) string {
-	if traceID, ok := ctx.Value(traceIDKey).(string); ok {
+	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
 		return traceID
 	}
 	return uuid.New().String()
+}
+
+// GetOrCreateTraceID extracts trace ID from context or creates a new one
+// This is useful for gRPC services that might receive contexts without trace IDs
+func GetOrCreateTraceID(ctx context.Context) (context.Context, string) {
+	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
+		return ctx, traceID
+	}
+
+	traceID := uuid.New().String()
+	ctx = context.WithValue(ctx, TraceIDKey, traceID)
+	return ctx, traceID
+}
+
+// RequestSizeLimitMiddleware limits the size of request bodies to prevent DoS attacks
+func RequestSizeLimitMiddleware(maxBytes int64) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Limit request body size
+			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
+			next.ServeHTTP(w, r)
+		})
+	}
 }

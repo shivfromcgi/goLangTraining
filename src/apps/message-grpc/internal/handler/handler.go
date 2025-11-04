@@ -2,20 +2,16 @@ package handler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	pb "cgi.com/goLangTraining/proto/message_service"
+	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
-	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-// contextKey is a custom type for context keys to avoid collisions
-type contextKey string
-
-const traceIDKey contextKey = "traceID"
 
 // MessageHandler implements the MessageService gRPC service
 type MessageHandler struct {
@@ -32,8 +28,7 @@ func NewMessageHandler(storage *storage.MessageStorage) *MessageHandler {
 
 // Save implements the Save RPC method
 func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (*emptypb.Empty, error) {
-	traceID := uuid.New().String()
-	ctx = context.WithValue(ctx, traceIDKey, traceID)
+	ctx, traceID := middleware.GetOrCreateTraceID(ctx)
 
 	slog.InfoContext(ctx, "Received Save request",
 		"user", req.User,
@@ -42,7 +37,7 @@ func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (
 
 	// Validate input - return early following guidelines
 	if req.User == "" || req.Message == "" {
-		return nil, fmt.Errorf("user and message are required")
+		return nil, status.Error(codes.InvalidArgument, "user and message are required")
 	}
 
 	// Save message using storage service
@@ -52,7 +47,7 @@ func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (
 			"error", err,
 			"user", req.User,
 			"traceID", traceID)
-		return nil, fmt.Errorf("failed to save message: %w", err)
+		return nil, status.Error(codes.Internal, "failed to save message")
 	}
 
 	slog.InfoContext(ctx, "Message saved successfully",
@@ -64,8 +59,7 @@ func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (
 
 // GetLast10 implements the GetLast10 RPC method
 func (h *MessageHandler) GetLast10(ctx context.Context, req *emptypb.Empty) (*pb.GetLast10Response, error) {
-	traceID := uuid.New().String()
-	ctx = context.WithValue(ctx, traceIDKey, traceID)
+	ctx, traceID := middleware.GetOrCreateTraceID(ctx)
 
 	slog.InfoContext(ctx, "Received GetLast10 request", "traceID", traceID)
 
@@ -75,7 +69,7 @@ func (h *MessageHandler) GetLast10(ctx context.Context, req *emptypb.Empty) (*pb
 		slog.ErrorContext(ctx, "Failed to read messages",
 			"error", err,
 			"traceID", traceID)
-		return nil, fmt.Errorf("failed to read messages: %w", err)
+		return nil, status.Error(codes.Internal, "failed to retrieve messages")
 	}
 
 	// Convert to protobuf messages

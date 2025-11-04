@@ -9,12 +9,12 @@ import (
 	"os/signal"
 	"syscall"
 
+	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/websocket"
 )
 
 const (
-	defaultAPIVersion = "1.0.0"
-	defaultServerURL  = "ws://localhost:8080/ws"
+	defaultServerURL = "ws://localhost:8080/ws"
 )
 
 func main() {
@@ -30,37 +30,37 @@ func main() {
 		AddSource: true,
 	})).With(
 		"service", "message-cli",
-		"version", defaultAPIVersion,
+		"version", version.Version,
 	)
 	slog.SetDefault(logger)
 
 	slog.Info("Starting CGI Message CLI WebSocket Client",
 		"service", "message-cli",
-		"version", defaultAPIVersion)
+		"version", version.Version)
 
-	connectToWebSocket(*serverURL)
+	if err := connectToWebSocket(*serverURL); err != nil {
+		slog.Error("WebSocket client failed", "error", err)
+		os.Exit(1)
+	}
 }
 
-func connectToWebSocket(serverURL string) {
-	fmt.Println("=== CGI Message CLI WebSocket Client ===")
-	fmt.Printf("🔌 Connecting to %s\n", serverURL)
+func connectToWebSocket(serverURL string) error {
+	slog.Info("Starting WebSocket client connection", "serverURL", serverURL)
 
 	u, err := url.Parse(serverURL)
 	if err != nil {
-		fmt.Printf("❌ Invalid server URL: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("invalid server URL %s: %w", serverURL, err)
 	}
 
 	// Connect to WebSocket
 	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
-		fmt.Printf("❌ Failed to connect to WebSocket: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to connect to WebSocket %s: %w", serverURL, err)
 	}
 	defer conn.Close()
 
-	fmt.Println("✅ Connected to WebSocket server")
-	fmt.Println("📨 Listening for messages... (Press Ctrl+C to exit)")
+	slog.Info("Connected to WebSocket server successfully", "serverURL", serverURL)
+	slog.Info("Listening for messages - Press Ctrl+C to exit")
 
 	// Set up signal handling for graceful shutdown
 	interrupt := make(chan os.Signal, 1)
@@ -82,7 +82,7 @@ func connectToWebSocket(serverURL string) {
 			}
 
 			if messageType == websocket.TextMessage {
-				fmt.Printf("� Received: %s\n", string(message))
+				slog.Info("Message received", "message", string(message))
 			}
 		}
 	}()
@@ -90,22 +90,21 @@ func connectToWebSocket(serverURL string) {
 	// Wait for interrupt signal or connection close
 	select {
 	case <-done:
-		fmt.Println("\n📪 Connection closed by server")
+		slog.Info("Connection closed by server")
 	case <-interrupt:
-		fmt.Println("\n🛑 Interrupt received, closing connection...")
+		slog.Info("Interrupt received, closing connection")
 
 		// Cleanly close the connection
 		err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 		if err != nil {
 			slog.Error("Error closing WebSocket", "error", err)
-			return
+			return fmt.Errorf("error closing WebSocket: %w", err)
 		}
 
 		// Wait for the server to close the connection
-		select {
-		case <-done:
-		}
+		<-done
 	}
 
-	fmt.Println("✅ CLI client exited cleanly")
+	slog.Info("CLI client exited cleanly")
+	return nil
 }

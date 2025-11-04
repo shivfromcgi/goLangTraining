@@ -28,6 +28,15 @@ func main() {
 	)
 	flag.Parse()
 
+	// Set up structured logging
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level:     slog.LevelInfo,
+		AddSource: true,
+	})).With(
+		"service", "message-grpc-client",
+	)
+	slog.SetDefault(logger)
+
 	conn, err := grpc.Dial(*serverAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		slog.Error("Failed to connect to server", "error", err, "serverAddr", *serverAddr)
@@ -36,37 +45,36 @@ func main() {
 	defer conn.Close()
 
 	client := pb.NewMessageServiceClient(conn)
-	fmt.Printf("🔌 Connected to gRPC Message Service at %s\n", *serverAddr)
+	slog.Info("Connected to gRPC Message Service", "serverAddr", *serverAddr)
 
+	// Handle operations using a helper function
+	if err := runClientOperations(client, *getLast10, *user, *message); err != nil {
+		slog.Error("Client operation failed", "error", err)
+		os.Exit(1)
+	}
+}
+
+func runClientOperations(client pb.MessageServiceClient, getLast10 bool, user, message string) error {
 	// Handle operations - return early following guidelines
-	if *getLast10 {
-		err := getMessages(client)
-		if err != nil {
-			slog.Error("Failed to get messages", "error", err)
-			os.Exit(1)
-		}
-		return
+	if getLast10 {
+		return getMessages(client)
 	}
 
-	if *user != "" && *message != "" {
-		err := saveMessage(client, *user, *message)
-		if err != nil {
-			slog.Error("Failed to save message", "error", err)
-			os.Exit(1)
+	if user != "" && message != "" {
+		if err := saveMessage(client, user, message); err != nil {
+			return fmt.Errorf("failed to save message: %w", err)
 		}
 
 		// After saving, automatically show last 10 messages as per reviewer feedback
-		fmt.Printf("\n📨 Fetching updated messages after save...\n")
-		err = getMessages(client)
-		if err != nil {
-			slog.Error("Failed to get messages after save", "error", err)
-			os.Exit(1)
+		slog.Info("Fetching updated messages after save")
+		if err := getMessages(client); err != nil {
+			return fmt.Errorf("failed to get messages after save: %w", err)
 		}
-		return
+		return nil
 	}
 
 	// Default demo mode
-	runDemo(client)
+	return runDemo(client)
 }
 
 func saveMessage(client pb.MessageServiceClient, user, message string) error {
@@ -78,14 +86,14 @@ func saveMessage(client pb.MessageServiceClient, user, message string) error {
 		Message: message,
 	}
 
-	fmt.Printf("💾 Saving message: %s -> %s\n", user, message)
+	slog.Info("Saving message", "user", user, "message", message)
 
 	_, err := client.Save(ctx, req)
 	if err != nil {
 		return fmt.Errorf("save failed: %w", err)
 	}
 
-	fmt.Printf("✅ Message saved successfully!\n")
+	slog.Info("Message saved successfully", "user", user)
 	return nil
 }
 
@@ -93,7 +101,7 @@ func getMessages(client pb.MessageServiceClient) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	fmt.Printf("📨 Fetching last 10 messages...\n")
+	slog.Info("Fetching last 10 messages")
 
 	resp, err := client.GetLast10(ctx, &emptypb.Empty{})
 	if err != nil {
@@ -102,45 +110,45 @@ func getMessages(client pb.MessageServiceClient) error {
 
 	messages := resp.GetMessages()
 	if len(messages) == 0 {
-		fmt.Println("📭 No messages found.")
+		slog.Info("No messages found")
 		return nil
 	}
 
-	fmt.Printf("\n📋 Last %d Messages:\n", len(messages))
+	slog.Info("Retrieved messages", "count", len(messages))
 	for _, msg := range messages {
 		timestamp := msg.GetTimestamp().AsTime()
-		fmt.Printf("  [%d] %s (%s): %s\n",
-			msg.GetId(),
-			msg.GetUser(),
-			timestamp.Format("2006-01-02 15:04:05"),
-			msg.GetMessage())
+		slog.Info("Message",
+			"id", msg.GetId(),
+			"user", msg.GetUser(),
+			"timestamp", timestamp.Format("2006-01-02 15:04:05"),
+			"message", msg.GetMessage())
 	}
 
 	return nil
 }
 
-func runDemo(client pb.MessageServiceClient) {
-	fmt.Println("\n📖 gRPC Client Usage:")
-	fmt.Printf("  Save message:    go run . -user=alice -message='Hello gRPC!'\n")
-	fmt.Printf("  Get messages:    go run . -get\n")
-	fmt.Printf("  Custom server:   go run . -server=localhost:50051 -get\n")
+func runDemo(client pb.MessageServiceClient) error {
+	slog.Info("Running gRPC Client Demo")
+	slog.Info("Usage examples",
+		"save_message", "go run . -user=alice -message='Hello gRPC!'",
+		"get_messages", "go run . -get",
+		"custom_server", "go run . -server=localhost:50051 -get")
 
 	demoUser := "demo"
 	demoMessage := fmt.Sprintf("gRPC Client Demo - %s", time.Now().Format("15:04:05"))
 
-	fmt.Printf("\n1️⃣ Saving demo message...\n")
+	slog.Info("Step 1: Saving demo message")
 	err := saveMessage(client, demoUser, demoMessage)
 	if err != nil {
-		slog.Error("Demo failed - save message", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("demo failed - save message: %w", err)
 	}
 
-	fmt.Printf("\n2️⃣ Getting last 10 messages...\n")
+	slog.Info("Step 2: Getting last 10 messages")
 	err = getMessages(client)
 	if err != nil {
-		slog.Error("Demo failed - get messages", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("demo failed - get messages: %w", err)
 	}
 
-	fmt.Println("\n✅ gRPC client operation completed successfully!")
+	slog.Info("gRPC client operation completed successfully")
+	return nil
 }

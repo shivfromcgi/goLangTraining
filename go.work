@@ -10,4 +10,5 @@ use (
 	./src/pkg/middleware
 	./src/pkg/storage
 	./src/pkg/types
+	./src/pkg/version
 )

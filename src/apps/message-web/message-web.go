@@ -13,7 +13,9 @@ import (
 	"time"
 
 	"cgi.com/goLangTraining/src/apps/message-web/internal/handler"
+	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
+	"cgi.com/goLangTraining/src/pkg/version"
 )
 
 // Embedded file systems for web interface
@@ -23,8 +25,12 @@ var htmlFiles embed.FS
 
 const (
 	gracefulShutdownTimeout = 30 * time.Second
-	defaultAPIVersion       = "1.0.0"
 	defaultPort             = 8090
+
+	// Server configuration constants
+	readTimeout  = 15 * time.Second
+	writeTimeout = 15 * time.Second
+	idleTimeout  = 60 * time.Second
 )
 
 func main() {
@@ -32,7 +38,7 @@ func main() {
 
 	slog.Info("Starting CGI Message Web Service",
 		"service", "message-web",
-		"version", defaultAPIVersion)
+		"version", version.Version)
 
 	port := flag.Int("port", defaultPort, "Port for HTTP server")
 	flag.Parse()
@@ -50,29 +56,32 @@ func setupLogging() {
 		AddSource: true,
 	})).With(
 		"service", "message-web",
-		"version", defaultAPIVersion,
-	)
+		"version", version.Version)
 	slog.SetDefault(logger)
 }
 
 // startWebServer starts the web server with ServeMux routing
 func startWebServer(port int, messageStorage *storage.MessageStorage) {
-	webHandler := handler.NewWebHandler(messageStorage, htmlFiles)
+	webHandler, err := handler.NewWebHandler(messageStorage, htmlFiles)
+	if err != nil {
+		slog.Error("Failed to create web handler", "error", err)
+		os.Exit(1)
+	}
 
 	// Use ServeMux for consistency with API service
 	mux := http.NewServeMux()
 
-	// Web interface routes
-	mux.HandleFunc("/", handler.TraceMiddleware(webHandler.IndexHandler))
-	mux.HandleFunc("/messages", handler.TraceMiddleware(webHandler.MessagesHandler))
-	mux.HandleFunc("/health", handler.TraceMiddleware(webHandler.HealthHandler))
+	// Web interface routes with shared middleware
+	mux.Handle("/", middleware.TraceMiddleware(http.HandlerFunc(webHandler.IndexHandler)))
+	mux.Handle("/messages", middleware.TraceMiddleware(http.HandlerFunc(webHandler.MessagesHandler)))
+	mux.Handle("/health", middleware.TraceMiddleware(http.HandlerFunc(webHandler.HealthHandler)))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      mux,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
 	}
 
 	// Start server in goroutine

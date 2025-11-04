@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 	"os"
+
+	"cgi.com/goLangTraining/src/pkg/middleware"
 )
 
 // SaveData provides a simple interface for persisting data to files.
@@ -11,7 +13,7 @@ import (
 // to enable debugging of file operation failures. Uses atomic file replacement
 // to ensure consistent state and proper error propagation.
 func SaveData(ctx context.Context, filePath string, data string) error {
-	traceID, _ := ctx.Value("traceID").(string)
+	traceID := middleware.GetTraceID(ctx)
 
 	metrics := FileMetrics{
 		ContentSize: len(data),
@@ -43,7 +45,7 @@ func SaveData(ctx context.Context, filePath string, data string) error {
 // for operational visibility into file access patterns. Loads entire file
 // into memory which is appropriate for configuration files and small datasets.
 func ReadData(ctx context.Context, filePath string) (string, error) {
-	traceID, _ := ctx.Value("traceID").(string)
+	traceID := middleware.GetTraceID(ctx)
 
 	slog.InfoContext(ctx, "Starting file read operation",
 		"filePath", filePath,

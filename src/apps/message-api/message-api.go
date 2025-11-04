@@ -14,6 +14,7 @@ import (
 	"cgi.com/goLangTraining/src/apps/message-api/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
+	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/mux"
 )
 
@@ -24,8 +25,13 @@ const (
 	// the service without dropping active requests. The timeout should be less than
 	// the container's terminationGracePeriodSeconds to ensure clean shutdown.
 	gracefulShutdownTimeout = 30 * time.Second
-	defaultAPIVersion       = "1.0.0"
 	defaultPort             = 8080
+
+	// Server configuration constants
+	maxRequestSizeBytes = 1024 * 1024 // 1MB
+	readTimeout         = 15 * time.Second
+	writeTimeout        = 15 * time.Second
+	idleTimeout         = 60 * time.Second
 )
 
 func main() {
@@ -39,13 +45,13 @@ func main() {
 		AddSource: true,
 	})).With(
 		"service", "message-api",
-		"version", defaultAPIVersion,
+		"version", version.Version,
 	)
 	slog.SetDefault(logger)
 
 	slog.Info("Starting CGI Message API Service",
 		"service", "message-api",
-		"version", defaultAPIVersion)
+		"version", version.Version)
 
 	// Use default storage following guidelines
 	messageStorage := storage.GetDefaultStorage()
@@ -63,21 +69,24 @@ func startAPIServer(port int, messageStorage *storage.MessageStorage) {
 	healthHandler := handler.NewHealthHandler()
 	wsHandler := handler.NewWebSocketHandler(messageStorage)
 
+	// Apply request size limit and trace middleware
+	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)
+
 	// API routes with proper structure
-	r.Handle("/api/v1/messages", middleware.TraceMiddleware(messagesHandler))
+	r.Handle("/api/v1/messages", requestLimitMiddleware(middleware.TraceMiddleware(messagesHandler)))
 	r.Handle("/api/v1/health", middleware.TraceMiddleware(healthHandler))
 	r.Handle("/ws", middleware.TraceMiddleware(wsHandler))
 
 	// Legacy routes for backward compatibility
-	r.Handle("/messages", middleware.TraceMiddleware(messagesHandler))
+	r.Handle("/messages", requestLimitMiddleware(middleware.TraceMiddleware(messagesHandler)))
 	r.Handle("/health", middleware.TraceMiddleware(healthHandler))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
 		Handler:      r,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  readTimeout,
+		WriteTimeout: writeTimeout,
+		IdleTimeout:  idleTimeout,
 	}
 
 	// Start server in goroutine
