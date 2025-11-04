@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
-	"time"
 
+	"cgi.com/goLangTraining/src/pkg/hub"
 	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
 	"github.com/gorilla/websocket"
@@ -60,7 +60,7 @@ var (
 )
 
 // NewWebSocketHandler returns a WebSocket handler function
-func NewWebSocketHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
+func NewWebSocketHandler(messageStorage *storage.MessageStorage, messageHub *hub.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceID := middleware.GetTraceID(r.Context())
 
@@ -89,43 +89,43 @@ func NewWebSocketHandler(messageStorage *storage.MessageStorage) http.HandlerFun
 			slog.ErrorContext(r.Context(), "Failed to upgrade to WebSocket", "error", err)
 			return
 		}
-		defer conn.Close()
 
 		slog.InfoContext(r.Context(), "WebSocket connection established")
 
-		// Send last 10 messages and close
+		// Create client and register with hub for real-time message broadcasting
+		client := &hub.Client{
+			Hub:  messageHub,
+			Conn: conn,
+			Send: make(chan []byte, 256),
+		}
+
+		// Register client with hub
+		client.Hub.Register <- client
+
+		// Send last 10 messages as history first
 		messages, err := messageStorage.GetLastMessages(traceID, 10)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "Failed to get messages for WebSocket", "error", err)
-			return
-		}
+		} else {
+			for _, msg := range messages {
+				messageText := fmt.Sprintf("[%s] %s: %s",
+					msg.Timestamp.Format("2006-01-02 15:04:05"),
+					msg.User,
+					msg.Message)
 
-		// Send each message with proper error handling
-		for _, msg := range messages {
-			messageText := fmt.Sprintf("[%s] %s: %s",
-				msg.Timestamp.Format("2006-01-02 15:04:05"),
-				msg.User,
-				msg.Message)
-
-			// Set write deadline to prevent hanging
-			if err := conn.SetWriteDeadline(time.Now().Add(writeDeadlineSeconds * time.Second)); err != nil {
-				slog.ErrorContext(r.Context(), "Failed to set write deadline", "error", err)
-				break
-			}
-
-			err := conn.WriteMessage(websocket.TextMessage, []byte(messageText))
-			if err != nil {
-				slog.ErrorContext(r.Context(), "Failed to write WebSocket message", "error", err)
-				break
+				select {
+				case client.Send <- []byte(messageText):
+				default:
+					// Channel is full, skip message
+					slog.WarnContext(r.Context(), "Client send channel full, skipping historical message")
+				}
 			}
 		}
 
-		// Send close message to gracefully close the connection
-		closeMessage := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "Messages sent")
-		if err := conn.SetWriteDeadline(time.Now().Add(closeDeadlineSeconds * time.Second)); err == nil {
-			conn.WriteMessage(websocket.CloseMessage, closeMessage)
-		}
+		// Start client goroutines for real-time communication
+		go client.WritePump()
+		go client.ReadPump()
 
-		slog.InfoContext(r.Context(), "WebSocket messages sent, closing connection", "count", len(messages))
+		slog.InfoContext(r.Context(), "WebSocket client connected to real-time hub", "historical_messages", len(messages))
 	}
 }

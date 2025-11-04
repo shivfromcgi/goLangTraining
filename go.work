@@ -7,6 +7,7 @@ use (
 	./src/apps/message-cli
 	./src/apps/message-grpc
 	./src/apps/message-web
+	./src/pkg/hub
 	./src/pkg/middleware
 	./src/pkg/storage
 	./src/pkg/types

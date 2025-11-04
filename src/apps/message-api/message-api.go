@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"cgi.com/goLangTraining/src/apps/message-api/internal/handler"
+	"cgi.com/goLangTraining/src/pkg/hub"
 	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/version"
@@ -56,18 +57,22 @@ func main() {
 	// Use default storage following guidelines
 	messageStorage := storage.GetDefaultStorage()
 
-	startAPIServer(*port, messageStorage)
+	// Create and start the message hub for real-time broadcasting
+	messageHub := hub.NewHub(logger)
+	go messageHub.Run()
+
+	startAPIServer(*port, messageStorage, messageHub)
 }
 
 // startAPIServer starts the API server with mux routing
-func startAPIServer(port int, messageStorage *storage.MessageStorage) {
+func startAPIServer(port int, messageStorage *storage.MessageStorage, messageHub *hub.Hub) {
 	// Use mux router following guidelines
 	r := mux.NewRouter()
 
 	// Create handlers with dependencies
-	messagesHandler := handler.NewMessagesHandler(messageStorage)
+	messagesHandler := handler.NewMessagesHandler(messageStorage, messageHub)
 	healthHandler := handler.NewHealthHandler()
-	wsHandler := handler.NewWebSocketHandler(messageStorage)
+	wsHandler := handler.NewWebSocketHandler(messageStorage, messageHub)
 
 	// Apply request size limit and trace middleware
 	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)

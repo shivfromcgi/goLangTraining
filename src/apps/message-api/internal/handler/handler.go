@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"cgi.com/goLangTraining/src/pkg/hub"
 	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/types"
@@ -36,11 +37,11 @@ func writeJSONResponse(w http.ResponseWriter, ctx context.Context, statusCode in
 }
 
 // NewMessagesHandler returns a handler function for message-related requests
-func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
+func NewMessagesHandler(messageStorage *storage.MessageStorage, messageHub *hub.Hub) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			createMessage(w, r, messageStorage)
+			createMessage(w, r, messageStorage, messageHub)
 		case http.MethodGet:
 			getMessages(w, r, messageStorage)
 		default:
@@ -55,7 +56,7 @@ func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc
 }
 
 // createMessage handles POST requests to create a new message
-func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
+func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage, messageHub *hub.Hub) {
 	traceID := middleware.GetTraceID(r.Context())
 
 	var req types.CreateMessageRequest
@@ -113,7 +114,14 @@ func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *stora
 		return
 	}
 
-	slog.InfoContext(r.Context(), "Message created successfully", "user", req.User)
+	// Broadcast the new message to all connected WebSocket clients
+	messageText := fmt.Sprintf("[%s] %s: %s",
+		time.Now().Format("2006-01-02 15:04:05"),
+		req.User,
+		req.Message)
+	messageHub.BroadcastMessage([]byte(messageText))
+
+	slog.InfoContext(r.Context(), "Message created and broadcasted successfully", "user", req.User)
 
 	// Inline success response
 	writeJSONResponse(w, r.Context(), http.StatusCreated, types.EmptyResponse{

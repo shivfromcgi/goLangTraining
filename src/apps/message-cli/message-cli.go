@@ -1,26 +1,36 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"net/url"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
+	"cgi.com/goLangTraining/src/pkg/types"
 	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/websocket"
 )
 
 const (
 	defaultServerURL = "ws://localhost:8080/ws"
+	defaultAPIURL    = "http://localhost:8080/api/v1/messages"
 )
 
 func main() {
 	// Declare flags at top following guidelines
 	var (
 		serverURL = flag.String("server", defaultServerURL, "WebSocket server URL")
+		apiURL    = flag.String("api", defaultAPIURL, "HTTP API URL for posting messages")
+		user      = flag.String("user", "", "User name for posting message (required with -message)")
+		message   = flag.String("message", "", "Message to post (requires -user)")
+		listen    = flag.Bool("listen", false, "Listen for real-time messages via WebSocket")
 	)
 	flag.Parse()
 
@@ -34,13 +44,38 @@ func main() {
 	)
 	slog.SetDefault(logger)
 
-	slog.Info("Starting CGI Message CLI WebSocket Client",
+	slog.Info("Starting CGI Message CLI",
 		"service", "message-cli",
 		"version", version.Version)
 
-	if err := connectToWebSocket(*serverURL); err != nil {
-		slog.Error("WebSocket client failed", "error", err)
+	// Determine mode of operation
+	if *user != "" && *message != "" {
+		// Post message mode
+		if err := postMessage(*apiURL, *user, *message); err != nil {
+			slog.Error("Failed to post message", "error", err)
+			os.Exit(1)
+		}
+
+		// If listen flag is also set, continue to WebSocket listening
+		if !*listen {
+			return
+		}
+	} else if *user != "" || *message != "" {
+		// Only one of user/message provided - error
+		fmt.Fprintf(os.Stderr, "Error: Both -user and -message flags are required to post a message\n")
+		fmt.Fprintf(os.Stderr, "Usage examples:\n")
+		fmt.Fprintf(os.Stderr, "  %s -listen                              # Listen for messages\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -user john -message \"Hello World\"   # Post a message\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "  %s -user john -message \"Hello\" -listen # Post and listen\n", os.Args[0])
 		os.Exit(1)
+	}
+
+	// Default or explicit listen mode
+	if *listen || (*user == "" && *message == "") {
+		if err := connectToWebSocket(*serverURL); err != nil {
+			slog.Error("WebSocket client failed", "error", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -106,5 +141,51 @@ func connectToWebSocket(serverURL string) error {
 	}
 
 	slog.Info("CLI client exited cleanly")
+	return nil
+}
+
+// postMessage sends a message to the HTTP API
+func postMessage(apiURL, user, message string) error {
+	slog.Info("Posting message to API", "apiURL", apiURL, "user", user)
+
+	// Validate input
+	if strings.TrimSpace(user) == "" || strings.TrimSpace(message) == "" {
+		return fmt.Errorf("user and message cannot be empty")
+	}
+
+	// Create request payload
+	payload := types.CreateMessageRequest{
+		User:    user,
+		Message: message,
+	}
+
+	// Marshal to JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Create HTTP request
+	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	// Make HTTP request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// Check response status
+	if resp.StatusCode != http.StatusCreated {
+		return fmt.Errorf("API returned status %d", resp.StatusCode)
+	}
+
+	slog.Info("Message posted successfully", "user", user, "status", resp.StatusCode)
 	return nil
 }
