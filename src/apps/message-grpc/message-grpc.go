@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	pb "cgi.com/goLangTraining/proto/message_service"
 	"cgi.com/goLangTraining/src/apps/message-grpc/internal/handler"
@@ -53,11 +55,25 @@ func main() {
 	fmt.Printf("   grpcurl -plaintext -d '{\"user\":\"alice\",\"message\":\"Hello gRPC!\"}' localhost:50051 message_service.MessageService/Save\n")
 	fmt.Printf("   grpcurl -plaintext localhost:50051 message_service.MessageService/GetLast10\n")
 
-	// Start server
-	if err := s.Serve(lis); err != nil {
-		slog.Error("Failed to serve", "error", err)
-		os.Exit(1)
-	}
+	// Start server in goroutine for graceful shutdown
+	go func() {
+		if err := s.Serve(lis); err != nil {
+			slog.Error("Failed to serve", "error", err)
+			os.Exit(1)
+		}
+	}()
+
+	// Wait for interrupt signal for graceful shutdown
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	slog.Info("gRPC server shutting down...")
+
+	// Graceful shutdown of gRPC server
+	s.GracefulStop()
+
+	slog.Info("gRPC server exited")
 }
 
 // setupLogging configures the default slog logger following guidelines

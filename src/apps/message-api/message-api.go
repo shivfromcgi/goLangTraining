@@ -12,33 +12,28 @@ import (
 	"time"
 
 	"cgi.com/goLangTraining/src/apps/message-api/internal/handler"
+	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
+	"github.com/gorilla/mux"
 )
 
 const (
+	// gracefulShutdownTimeout defines how long the server waits for existing connections
+	// to finish before forcefully shutting down. In containerized environments, this
+	// allows the container orchestrator (Docker, Kubernetes) to gracefully terminate
+	// the service without dropping active requests. The timeout should be less than
+	// the container's terminationGracePeriodSeconds to ensure clean shutdown.
 	gracefulShutdownTimeout = 30 * time.Second
 	defaultAPIVersion       = "1.0.0"
 	defaultPort             = 8080
 )
 
 func main() {
-	setupLogging()
-
-	slog.Info("Starting CGI Message API Service",
-		"service", "message-api",
-		"version", defaultAPIVersion)
-
+	// Declare flags at top following guidelines
 	port := flag.Int("port", defaultPort, "Port for HTTP server")
 	flag.Parse()
 
-	// Use default storage following guidelines
-	messageStorage := storage.GetDefaultStorage()
-
-	startAPIServer(*port, messageStorage)
-}
-
-// setupLogging configures the default slog logger following guidelines
-func setupLogging() {
+	// Set up slog.SetDefault following guidelines
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level:     slog.LevelInfo,
 		AddSource: true,
@@ -47,26 +42,39 @@ func setupLogging() {
 		"version", defaultAPIVersion,
 	)
 	slog.SetDefault(logger)
+
+	slog.Info("Starting CGI Message API Service",
+		"service", "message-api",
+		"version", defaultAPIVersion)
+
+	// Use default storage following guidelines
+	messageStorage := storage.GetDefaultStorage()
+
+	startAPIServer(*port, messageStorage)
 }
 
-// startAPIServer starts the API server with ServeMux routing
+// startAPIServer starts the API server with mux routing
 func startAPIServer(port int, messageStorage *storage.MessageStorage) {
-	apiHandler := handler.NewAPIHandler(messageStorage)
+	// Use mux router following guidelines
+	r := mux.NewRouter()
 
-	// Use ServeMux as per reviewer feedback
-	mux := http.NewServeMux()
+	// Create handlers with dependencies
+	messagesHandler := handler.NewMessagesHandler(messageStorage)
+	healthHandler := handler.NewHealthHandler()
+	wsHandler := handler.NewWebSocketHandler(messageStorage)
 
 	// API routes with proper structure
-	mux.HandleFunc("/api/v1/messages", handler.TraceMiddleware(apiHandler.MessagesHandler))
-	mux.HandleFunc("/api/v1/health", handler.TraceMiddleware(apiHandler.HealthHandler))
+	r.Handle("/api/v1/messages", middleware.TraceMiddleware(messagesHandler))
+	r.Handle("/api/v1/health", middleware.TraceMiddleware(healthHandler))
+	r.Handle("/ws", middleware.TraceMiddleware(wsHandler))
 
 	// Legacy routes for backward compatibility
-	mux.HandleFunc("/messages", handler.TraceMiddleware(apiHandler.MessagesHandler))
-	mux.HandleFunc("/health", handler.TraceMiddleware(apiHandler.HealthHandler))
+	r.Handle("/messages", middleware.TraceMiddleware(messagesHandler))
+	r.Handle("/health", middleware.TraceMiddleware(healthHandler))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
-		Handler:      mux,
+		Handler:      r,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
 		IdleTimeout:  60 * time.Second,

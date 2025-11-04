@@ -1,85 +1,98 @@
 package handler
 
 import (
-	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
 
+	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/types"
-	"github.com/google/uuid"
 )
 
-// contextKey is a custom type for context keys to avoid collisions
-type contextKey string
-
-const traceIDKey contextKey = "traceID"
-
-// APIHandler contains dependencies for HTTP handlers
-type APIHandler struct {
-	storage *storage.MessageStorage
-}
-
-// NewAPIHandler creates a new APIHandler instance
-func NewAPIHandler(storage *storage.MessageStorage) *APIHandler {
-	return &APIHandler{
-		storage: storage,
-	}
-}
-
-// MessagesHandler handles message-related requests
-func (h *APIHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		h.createMessage(w, r)
-	case http.MethodGet:
-		h.getMessages(w, r)
-	default:
-		respondWithError(w, http.StatusMethodNotAllowed, "Method not allowed", getTraceID(r))
+// NewMessagesHandler returns a handler function for message-related requests
+func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost:
+			createMessage(w, r, messageStorage)
+		case http.MethodGet:
+			getMessages(w, r, messageStorage)
+		default:
+			// Inline error response
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			json.NewEncoder(w).Encode(types.EmptyResponse{
+				Success: false,
+				Error:   "Method not allowed",
+				TraceID: middleware.GetTraceID(r.Context()),
+			})
+		}
 	}
 }
 
 // createMessage handles POST requests to create a new message
-func (h *APIHandler) createMessage(w http.ResponseWriter, r *http.Request) {
-	traceID := getTraceID(r)
+func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
+	traceID := middleware.GetTraceID(r.Context())
 
 	var req types.CreateMessageRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		slog.ErrorContext(r.Context(), "Failed to decode request body", "error", err, "traceID", traceID)
-		respondWithError(w, http.StatusBadRequest, "Invalid request body", traceID)
+		slog.ErrorContext(r.Context(), "Failed to decode request body", "error", err)
+		// Inline error response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(types.EmptyResponse{
+			Success: false,
+			Error:   "Invalid request body",
+			TraceID: traceID,
+		})
 		return
 	}
 
 	// Validate input - return early following guidelines
 	if req.User == "" || req.Message == "" {
-		respondWithError(w, http.StatusBadRequest, "User and message are required", traceID)
+		// Inline error response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(types.EmptyResponse{
+			Success: false,
+			Error:   "User and message are required",
+			TraceID: traceID,
+		})
 		return
 	}
 
 	// Add message directly to storage
-	err := h.storage.AddMessage(req.User, req.Message)
+	err := messageStorage.AddMessage(req.User, req.Message)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to create message", "error", err, "traceID", traceID)
-		respondWithError(w, http.StatusInternalServerError, "Failed to create message", traceID)
+		slog.ErrorContext(r.Context(), "Failed to create message", "error", err)
+		// Inline error response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(types.EmptyResponse{
+			Success: false,
+			Error:   "Failed to create message",
+			TraceID: traceID,
+		})
 		return
 	}
 
-	slog.InfoContext(r.Context(), "Message created successfully",
-		"user", req.User,
-		"traceID", traceID)
+	slog.InfoContext(r.Context(), "Message created successfully", "user", req.User)
 
-	respondWithJSON(w, http.StatusCreated, types.EmptyResponse{
+	// Inline success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(types.EmptyResponse{
 		Success: true,
 		TraceID: traceID,
 	})
 }
 
 // getMessages handles GET requests to retrieve messages
-func (h *APIHandler) getMessages(w http.ResponseWriter, r *http.Request) {
-	traceID := getTraceID(r)
+func getMessages(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
+	traceID := middleware.GetTraceID(r.Context())
 
 	// Parse limit parameter
 	limitStr := r.URL.Query().Get("limit")
@@ -91,80 +104,52 @@ func (h *APIHandler) getMessages(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get messages directly from storage
-	messages, err := h.storage.GetLastMessages(traceID, limit)
+	messages, err := messageStorage.GetLastMessages(traceID, limit)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to retrieve messages", "error", err, "traceID", traceID)
-		respondWithError(w, http.StatusInternalServerError, "Failed to retrieve messages", traceID)
+		slog.ErrorContext(r.Context(), "Failed to retrieve messages", "error", err)
+		// Inline error response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(types.EmptyResponse{
+			Success: false,
+			Error:   "Failed to retrieve messages",
+			TraceID: traceID,
+		})
 		return
 	}
 
 	slog.InfoContext(r.Context(), "Messages retrieved successfully",
 		"count", len(messages),
-		"limit", limit,
-		"traceID", traceID)
+		"limit", limit)
 
-	respondWithJSON(w, http.StatusOK, types.MessageResponse{
+	// Inline success response
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(types.MessageResponse{
 		Success: true,
 		Data:    messages,
 		TraceID: traceID,
 	})
 }
 
-// HealthHandler handles health check requests
-func (h *APIHandler) HealthHandler(w http.ResponseWriter, r *http.Request) {
-	traceID := getTraceID(r)
-
-	health := types.HealthStatus{
-		Status:    "OK",
-		Timestamp: time.Now(),
-		Version:   "1.0.0",
-	}
-
-	respondWithJSON(w, http.StatusOK, types.HealthResponse{
-		Success: true,
-		Data:    health,
-		TraceID: traceID,
-	})
-}
-
-// TraceMiddleware adds trace ID to request context following guidelines
-func TraceMiddleware(next http.HandlerFunc) http.HandlerFunc {
+// NewHealthHandler returns a handler function for health check requests
+func NewHealthHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		traceID := uuid.New().String()
-		ctx := context.WithValue(r.Context(), traceIDKey, traceID)
+		traceID := middleware.GetTraceID(r.Context())
 
-		slog.InfoContext(ctx, "Incoming HTTP request",
-			"method", r.Method,
-			"path", r.URL.Path,
-			"remote_addr", r.RemoteAddr,
-			"user_agent", r.UserAgent(),
-			"traceID", traceID)
+		health := types.HealthStatus{
+			Status:    "OK",
+			Timestamp: time.Now(),
+			Version:   "1.0.0",
+		}
 
-		w.Header().Set("X-Trace-ID", traceID)
-		next.ServeHTTP(w, r.WithContext(ctx))
+		// Inline success response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(types.HealthResponse{
+			Success: true,
+			Data:    health,
+			TraceID: traceID,
+		})
 	}
-}
-
-// getTraceID extracts trace ID from request context
-func getTraceID(r *http.Request) string {
-	if traceID, ok := r.Context().Value(traceIDKey).(string); ok {
-		return traceID
-	}
-	return uuid.New().String()
-}
-
-// respondWithJSON sends a JSON response
-func respondWithJSON(w http.ResponseWriter, status int, payload interface{}) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(payload)
-}
-
-// respondWithError sends an error response
-func respondWithError(w http.ResponseWriter, status int, message string, traceID string) {
-	respondWithJSON(w, status, types.EmptyResponse{
-		Success: false,
-		Error:   message,
-		TraceID: traceID,
-	})
 }

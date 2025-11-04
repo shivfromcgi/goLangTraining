@@ -4,40 +4,27 @@ import (
 	"flag"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
-	"cgi.com/goLangTraining/src/pkg/storage"
+	"github.com/gorilla/websocket"
 )
 
 const (
 	defaultAPIVersion = "1.0.0"
+	defaultServerURL  = "ws://localhost:8080/ws"
 )
 
 func main() {
-	setupLogging()
-
-	slog.Info("Starting CGI Message CLI Service",
-		"service", "message-cli",
-		"version", defaultAPIVersion)
-
-	// Parse command line flags following guidelines - declare at top
+	// Declare flags at top following guidelines
 	var (
-		user    = flag.String("user", "", "User for CLI message operations")
-		message = flag.String("message", "", "Message for CLI operations")
-		clear   = flag.Bool("clear", false, "Clear all messages")
+		serverURL = flag.String("server", defaultServerURL, "WebSocket server URL")
 	)
 	flag.Parse()
 
-	// Use default storage following guidelines
-	messageStorage := storage.GetDefaultStorage()
-
-	// Handle CLI operations and exit
-	handleCLIOperations(*user, *message, *clear, messageStorage)
-}
-
-// setupLogging configures the default slog logger following guidelines
-func setupLogging() {
+	// Set up slog.SetDefault following guidelines
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level:     slog.LevelInfo,
 		AddSource: true,
@@ -46,54 +33,79 @@ func setupLogging() {
 		"version", defaultAPIVersion,
 	)
 	slog.SetDefault(logger)
+
+	slog.Info("Starting CGI Message CLI WebSocket Client",
+		"service", "message-cli",
+		"version", defaultAPIVersion)
+
+	connectToWebSocket(*serverURL)
 }
 
-// handleCLIOperations processes command-line operations following guidelines
-func handleCLIOperations(user, message string, clear bool, storage *storage.MessageStorage) {
-	fmt.Println("=== CGI Message CLI Service ===")
+func connectToWebSocket(serverURL string) {
+	fmt.Println("=== CGI Message CLI WebSocket Client ===")
+	fmt.Printf("🔌 Connecting to %s\n", serverURL)
 
-	// Add new message first if provided
-	if user != "" && message != "" {
-		err := storage.AddMessage(user, message)
-		if err != nil {
-			fmt.Printf("❌ Error adding message: %v\n", err)
-			return
-		}
-		fmt.Printf("✅ Message added: %s: %s\n", user, message)
-	}
-
-	// Clear messages if requested (after adding new message)
-	if clear {
-		err := storage.ClearMessages()
-		if err != nil {
-			fmt.Printf("❌ Error clearing messages: %v\n", err)
-			return
-		}
-		fmt.Println("✅ All messages cleared")
-
-		// If we only cleared messages, don't show the message list
-		if user == "" || message == "" {
-			return
-		}
-	}
-
-	// Show last messages
-	messages, err := storage.GetLastMessages("cli", 10)
+	u, err := url.Parse(serverURL)
 	if err != nil {
-		fmt.Printf("❌ Error reading messages: %v\n", err)
-		return
+		fmt.Printf("❌ Invalid server URL: %v\n", err)
+		os.Exit(1)
 	}
 
-	if len(messages) == 0 {
-		fmt.Println("📭 No messages found.")
-		return
+	// Connect to WebSocket
+	conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+	if err != nil {
+		fmt.Printf("❌ Failed to connect to WebSocket: %v\n", err)
+		os.Exit(1)
+	}
+	defer conn.Close()
+
+	fmt.Println("✅ Connected to WebSocket server")
+	fmt.Println("📨 Listening for messages... (Press Ctrl+C to exit)")
+
+	// Set up signal handling for graceful shutdown
+	interrupt := make(chan os.Signal, 1)
+	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)
+
+	// Channel to signal when we're done reading
+	done := make(chan struct{})
+
+	// Start goroutine to read messages
+	go func() {
+		defer close(done)
+		for {
+			messageType, message, err := conn.ReadMessage()
+			if err != nil {
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					slog.Error("WebSocket error", "error", err)
+				}
+				return
+			}
+
+			if messageType == websocket.TextMessage {
+				fmt.Printf("� Received: %s\n", string(message))
+			}
+		}
+	}()
+
+	// Wait for interrupt signal or connection close
+	select {
+	case <-done:
+		fmt.Println("\n📪 Connection closed by server")
+	case <-interrupt:
+		fmt.Println("\n🛑 Interrupt received, closing connection...")
+
+		// Cleanly close the connection
+		err := conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+		if err != nil {
+			slog.Error("Error closing WebSocket", "error", err)
+			return
+		}
+
+		// Wait for the server to close the connection
+		select {
+		case <-done:
+		}
 	}
 
-	fmt.Printf("\n📨 Last %d Messages:\n", len(messages))
-	for _, msg := range messages {
-		fmt.Printf("  [%s] %s: %s\n",
-			msg.Timestamp.UTC().Format(time.RFC3339),
-			msg.User,
-			msg.Message)
-	}
+	fmt.Println("✅ CLI client exited cleanly")
 }
