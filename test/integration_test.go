@@ -1,5 +1,4 @@
 package test
-package test
 
 import (
 	"bytes"
@@ -41,13 +40,13 @@ func TestRealTimeBroadcast(t *testing.T) {
 	const numClients = 3
 	var wg sync.WaitGroup
 	receivedMessages := make([][]string, numClients)
-	
+
 	// Start WebSocket clients
 	for i := 0; i < numClients; i++ {
 		wg.Add(1)
 		go func(clientID int) {
 			defer wg.Done()
-			
+
 			u, _ := url.Parse(testWSURL)
 			conn, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 			if err != nil {
@@ -59,7 +58,7 @@ func TestRealTimeBroadcast(t *testing.T) {
 			// Read messages for 5 seconds
 			timeout := time.After(5 * time.Second)
 			done := make(chan bool)
-			
+
 			go func() {
 				for {
 					_, message, err := conn.ReadMessage()
@@ -117,7 +116,7 @@ func TestRealTimeBroadcast(t *testing.T) {
 	expectedCount := len(testMessages)
 	for i, messages := range receivedMessages {
 		if len(messages) < expectedCount {
-			t.Errorf("Client %d received only %d messages, expected at least %d", 
+			t.Errorf("Client %d received only %d messages, expected at least %d",
 				i, len(messages), expectedCount)
 		}
 	}
