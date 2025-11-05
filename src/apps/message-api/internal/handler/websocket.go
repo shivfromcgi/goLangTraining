@@ -14,11 +14,9 @@ import (
 
 const (
 	// Configuration constants
-	maxConnections       = 100
-	readBufferSize       = 1024
-	writeBufferSize      = 1024
-	writeDeadlineSeconds = 10
-	closeDeadlineSeconds = 5
+	maxConnections  = 100
+	readBufferSize  = 1024
+	writeBufferSize = 1024
 )
 
 var (
