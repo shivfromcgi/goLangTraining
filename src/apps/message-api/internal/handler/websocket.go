@@ -58,7 +58,7 @@ var (
 )
 
 // NewWebSocketHandler returns a WebSocket handler function
-func NewWebSocketHandler(messageStorage *storage.MessageStorage, messageHub *hub.Hub) http.HandlerFunc {
+func NewWebSocketHandler(messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceID := middleware.GetTraceID(r.Context())
 
@@ -91,14 +91,10 @@ func NewWebSocketHandler(messageStorage *storage.MessageStorage, messageHub *hub
 		slog.InfoContext(r.Context(), "WebSocket connection established")
 
 		// Create client and register with hub for real-time message broadcasting
-		client := &hub.Client{
-			Hub:  messageHub,
-			Conn: conn,
-			Send: make(chan []byte, 256),
-		}
+		client := hub.NewClient(traceID, conn)
 
-		// Register client with hub
-		client.Hub.Register <- client
+		// Register client with hub using functional approach
+		hubChannels.Register <- client
 
 		// Send last 10 messages as history first
 		messages, err := messageStorage.GetLastMessages(traceID, 10)
@@ -120,10 +116,7 @@ func NewWebSocketHandler(messageStorage *storage.MessageStorage, messageHub *hub
 			}
 		}
 
-		// Start client goroutines for real-time communication
-		go client.WritePump()
-		go client.ReadPump()
-
+		// Client goroutines are started automatically by the hub when client is registered
 		slog.InfoContext(r.Context(), "WebSocket client connected to real-time hub", "historical_messages", len(messages))
 	}
 }

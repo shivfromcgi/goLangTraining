@@ -40,13 +40,11 @@ func main() {
 		AddSource: true,
 	})).With(
 		"service", "message-cli",
-		"version", version.Version,
+		"version", version.GetVersion(),
 	)
 	slog.SetDefault(logger)
 
-	slog.Info("Starting CGI Message CLI",
-		"service", "message-cli",
-		"version", version.Version)
+	slog.Info("Starting CGI Message CLI")
 
 	// Determine mode of operation
 	if *user != "" && *message != "" {

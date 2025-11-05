@@ -37,11 +37,11 @@ func writeJSONResponse(w http.ResponseWriter, ctx context.Context, statusCode in
 }
 
 // NewMessagesHandler returns a handler function for message-related requests
-func NewMessagesHandler(messageStorage *storage.MessageStorage, messageHub *hub.Hub) http.HandlerFunc {
+func NewMessagesHandler(messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			createMessage(w, r, messageStorage, messageHub)
+			createMessage(w, r, messageStorage, hubChannels)
 		case http.MethodGet:
 			getMessages(w, r, messageStorage)
 		default:
@@ -56,7 +56,7 @@ func NewMessagesHandler(messageStorage *storage.MessageStorage, messageHub *hub.
 }
 
 // createMessage handles POST requests to create a new message
-func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage, messageHub *hub.Hub) {
+func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) {
 	traceID := middleware.GetTraceID(r.Context())
 
 	var req types.CreateMessageRequest
@@ -101,25 +101,24 @@ func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *stora
 		return
 	}
 
-	// Add message directly to storage
+	// Save message to storage
 	err := messageStorage.AddMessage(req.User, req.Message)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to create message", "error", err)
+		slog.ErrorContext(r.Context(), "Failed to save message", "error", err, "user", req.User)
 		// Inline error response
 		writeJSONResponse(w, r.Context(), http.StatusInternalServerError, types.EmptyResponse{
 			Success: false,
-			Error:   "Failed to create message",
+			Error:   "Failed to save message",
 			TraceID: traceID,
 		})
 		return
 	}
-
 	// Broadcast the new message to all connected WebSocket clients
 	messageText := fmt.Sprintf("[%s] %s: %s",
 		time.Now().Format("2006-01-02 15:04:05"),
 		req.User,
 		req.Message)
-	messageHub.BroadcastMessage([]byte(messageText))
+	hub.BroadcastMessage(hubChannels, []byte(messageText), slog.Default())
 
 	slog.InfoContext(r.Context(), "Message created and broadcasted successfully", "user", req.User)
 
@@ -159,10 +158,10 @@ func getMessages(w http.ResponseWriter, r *http.Request, messageStorage *storage
 		}
 	}
 
-	// Get messages directly from storage
+	// Fetch messages from storage
 	messages, err := messageStorage.GetLastMessages(traceID, limit)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to retrieve messages", "error", err)
+		slog.ErrorContext(r.Context(), "Failed to retrieve messages", "error", err, "limit", limit)
 		// Inline error response
 		writeJSONResponse(w, r.Context(), http.StatusInternalServerError, types.EmptyResponse{
 			Success: false,
@@ -192,7 +191,7 @@ func NewHealthHandler() http.HandlerFunc {
 		health := types.HealthStatus{
 			Status:    "OK",
 			Timestamp: time.Now().UTC(),
-			Version:   version.Version,
+			Version:   version.GetVersion(),
 		}
 
 		// Inline success response

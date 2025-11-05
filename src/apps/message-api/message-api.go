@@ -46,33 +46,34 @@ func main() {
 		AddSource: true,
 	})).With(
 		"service", "message-api",
-		"version", version.Version,
+		"version", version.GetVersion(),
 	)
 	slog.SetDefault(logger)
 
-	slog.Info("Starting CGI Message API Service",
-		"service", "message-api",
-		"version", version.Version)
+	slog.Info("Starting CGI Message API Service")
 
 	// Use default storage following guidelines
 	messageStorage := storage.GetDefaultStorage()
 
-	// Create and start the message hub for real-time broadcasting
-	messageHub := hub.NewHub(logger)
-	go messageHub.Run()
+	// Create context for graceful shutdown
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	startAPIServer(*port, messageStorage, messageHub)
+	// Create and start the message hub for real-time broadcasting using functional approach
+	hubChannels := hub.Start(ctx, logger)
+
+	startAPIServer(*port, messageStorage, hubChannels)
 }
 
 // startAPIServer starts the API server with mux routing
-func startAPIServer(port int, messageStorage *storage.MessageStorage, messageHub *hub.Hub) {
+func startAPIServer(port int, messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) {
 	// Use mux router following guidelines
 	r := mux.NewRouter()
 
 	// Create handlers with dependencies
-	messagesHandler := handler.NewMessagesHandler(messageStorage, messageHub)
+	messagesHandler := handler.NewMessagesHandler(messageStorage, hubChannels)
 	healthHandler := handler.NewHealthHandler()
-	wsHandler := handler.NewWebSocketHandler(messageStorage, messageHub)
+	wsHandler := handler.NewWebSocketHandler(messageStorage, hubChannels)
 
 	// Apply request size limit and trace middleware
 	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)

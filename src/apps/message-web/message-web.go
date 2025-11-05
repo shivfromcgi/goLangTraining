@@ -36,9 +36,7 @@ const (
 func main() {
 	setupLogging()
 
-	slog.Info("Starting CGI Message Web Service",
-		"service", "message-web",
-		"version", version.Version)
+	slog.Info("Starting CGI Message Web Service")
 
 	port := flag.Int("port", defaultPort, "Port for HTTP server")
 	flag.Parse()
@@ -56,7 +54,7 @@ func setupLogging() {
 		AddSource: true,
 	})).With(
 		"service", "message-web",
-		"version", version.Version)
+		"version", version.GetVersion())
 	slog.SetDefault(logger)
 }
 

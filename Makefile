@@ -36,23 +36,29 @@ build-all:
 	@echo "Building all services using scripts/build.sh..."
 	@./scripts/build.sh
 
+# Version information for builds
+VERSION ?= dev
+BUILD_DATE ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GIT_COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+LDFLAGS = -X cgi.com/goLangTraining/src/pkg/version.Version=$(VERSION) -X cgi.com/goLangTraining/src/pkg/version.BuildDate=$(BUILD_DATE) -X cgi.com/goLangTraining/src/pkg/version.GitCommit=$(GIT_COMMIT)
+
 # Build individual services
 cli:
 	@echo "Building CLI service..."
-	cd src/apps/message-cli && go build -o ../../../build/message-cli .
+	cd src/apps/message-cli && go build -ldflags "$(LDFLAGS)" -o ../../../build/message-cli .
 
 api:
 	@echo "Building API service..."
-	cd src/apps/message-api && go build -o ../../../build/message-api .
+	cd src/apps/message-api && go build -ldflags "$(LDFLAGS)" -o ../../../build/message-api .
 
 grpc:
 	@echo "Building gRPC service..."
-	cd src/apps/message-grpc && go build -o ../../../build/message-grpc .
-	cd src/apps/message-grpc/cmd/client && go build -o ../../../../../build/grpc-client .
+	cd src/apps/message-grpc && go build -ldflags "$(LDFLAGS)" -o ../../../build/message-grpc .
+	cd src/apps/message-grpc/cmd/client && go build -ldflags "$(LDFLAGS)" -o ../../../../../build/grpc-client .
 
 web:
 	@echo "Building web service..."
-	cd src/apps/message-web && go build -o ../../../build/message-web .
+	cd src/apps/message-web && go build -ldflags "$(LDFLAGS)" -o ../../../build/message-web .
 
 # Legacy build target
 build: build-all

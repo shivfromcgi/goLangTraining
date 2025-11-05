@@ -2,7 +2,9 @@ package storage
 
 import (
 	"bufio"
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 	"unicode"
 
+	"cgi.com/goLangTraining/src/pkg/middleware"
 	"cgi.com/goLangTraining/src/pkg/types"
 )
 
@@ -18,6 +21,12 @@ const defaultMessagesFileName = "messages.txt"
 // messageLineRegex is compiled once for parsing message lines
 // Format: [timestamp] user: message
 var messageLineRegex = regexp.MustCompile(`^\[(.*?)\] ([^:]+): (.+)$`)
+
+// Global state for singleton pattern following coding standards
+var (
+	defaultFilename = defaultMessagesFileName
+	fileMutex       sync.RWMutex // Single mutex for all file operations
+)
 
 // sanitizeInput removes or replaces potentially dangerous characters
 func sanitizeInput(input string) string {
@@ -33,39 +42,10 @@ func sanitizeInput(input string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// MessageStorage handles persistent storage of messages
-type MessageStorage struct {
-	filename string
-	mu       sync.RWMutex // Protects concurrent access to file operations
-}
-
-var (
-	defaultStorage *MessageStorage
-	once           sync.Once
-)
-
-// GetDefaultStorage returns the default message storage instance (singleton)
-func GetDefaultStorage() *MessageStorage {
-	once.Do(func() {
-		defaultStorage = &MessageStorage{
-			filename: defaultMessagesFileName,
-		}
-	})
-	return defaultStorage
-}
-
-// NewMessageStorage creates a new message storage instance with custom filename
-// This is kept for backward compatibility and testing purposes
-func NewMessageStorage(filename string) *MessageStorage {
-	return &MessageStorage{
-		filename: filename,
-	}
-}
-
-// AddMessage appends a message to the storage file
-func (ms *MessageStorage) AddMessage(user, message string) error {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
+// AddMessage appends a message to the default storage file using static singleton pattern
+func AddMessage(ctx context.Context, user, message string) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
 
 	// Sanitize inputs to prevent log injection attacks
 	sanitizedUser := sanitizeInput(user)
@@ -73,11 +53,14 @@ func (ms *MessageStorage) AddMessage(user, message string) error {
 
 	// Validate sanitized inputs are not empty
 	if sanitizedUser == "" || sanitizedMessage == "" {
-		return fmt.Errorf("invalid input: user and message cannot be empty after sanitization")
+		err := fmt.Errorf("invalid input: user and message cannot be empty after sanitization")
+		slog.ErrorContext(ctx, "Message validation failed", "error", err, "user", user, "message", message)
+		return err
 	}
 
-	f, err := os.OpenFile(ms.filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	f, err := os.OpenFile(defaultFilename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
+		slog.ErrorContext(ctx, "Failed to open message file", "error", err, "filename", defaultFilename)
 		return err
 	}
 	defer f.Close()
@@ -85,19 +68,30 @@ func (ms *MessageStorage) AddMessage(user, message string) error {
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 	line := fmt.Sprintf("[%s] %s: %s\n", timestamp, sanitizedUser, sanitizedMessage)
 	_, err = f.WriteString(line)
+
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to write message to file", "error", err, "user", sanitizedUser)
+	} else {
+		slog.InfoContext(ctx, "Message saved successfully", "user", sanitizedUser, "messageLength", len(sanitizedMessage))
+	}
+
 	return err
 }
 
-// ReadMessages reads all messages from storage and returns them as Message structs
-func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) {
-	ms.mu.RLock()
-	defer ms.mu.RUnlock()
+// ReadMessages reads all messages from default storage and returns them as Message structs
+func ReadMessages(ctx context.Context) ([]types.Message, error) {
+	fileMutex.RLock()
+	defer fileMutex.RUnlock()
 
-	f, err := os.Open(ms.filename)
+	traceID := middleware.GetTraceID(ctx)
+
+	f, err := os.Open(defaultFilename)
 	if err != nil {
 		if os.IsNotExist(err) {
+			slog.InfoContext(ctx, "Message file does not exist, returning empty list", "filename", defaultFilename)
 			return []types.Message{}, nil
 		}
+		slog.ErrorContext(ctx, "Failed to open message file for reading", "error", err, "filename", defaultFilename)
 		return []types.Message{}, err
 	}
 	defer f.Close()
@@ -115,7 +109,7 @@ func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) 
 		}
 
 		// Parse format: [timestamp] user: message
-		message := ms.parseMessageLine(line, id, traceID)
+		message := parseMessageLine(line, id, traceID)
 		if message == nil {
 			continue
 		}
@@ -126,22 +120,30 @@ func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) 
 
 	// Explicitly check for scanner errors
 	if err := scanner.Err(); err != nil {
+		slog.ErrorContext(ctx, "Scanner error while reading messages", "error", err)
 		return []types.Message{}, err
 	}
 
+	slog.InfoContext(ctx, "Messages loaded successfully", "count", len(messages))
 	return messages, nil
 }
 
-// ClearMessages removes all messages from storage
-func (ms *MessageStorage) ClearMessages() error {
-	ms.mu.Lock()
-	defer ms.mu.Unlock()
+// ClearMessages removes all messages from default storage
+func ClearMessages(ctx context.Context) error {
+	fileMutex.Lock()
+	defer fileMutex.Unlock()
 
-	return os.Truncate(ms.filename, 0)
+	err := os.Truncate(defaultFilename, 0)
+	if err != nil {
+		slog.ErrorContext(ctx, "Failed to clear messages", "error", err, "filename", defaultFilename)
+	} else {
+		slog.InfoContext(ctx, "Messages cleared successfully", "filename", defaultFilename)
+	}
+	return err
 }
 
 // parseMessageLine parses a line from the message file into a Message struct
-func (ms *MessageStorage) parseMessageLine(line string, id int, traceID string) *types.Message {
+func parseMessageLine(line string, id int, traceID string) *types.Message {
 	// Parse format: [timestamp] user: message
 	// Example: [2024-01-01 12:34:56] john: Hello world!
 
@@ -174,9 +176,9 @@ func (ms *MessageStorage) parseMessageLine(line string, id int, traceID string) 
 	}
 }
 
-// GetLastMessages returns the last N messages
-func (ms *MessageStorage) GetLastMessages(traceID string, limit int) ([]types.Message, error) {
-	allMessages, err := ms.ReadMessages(traceID)
+// GetLastMessages returns the last N messages from default storage
+func GetLastMessages(ctx context.Context, limit int) ([]types.Message, error) {
+	allMessages, err := ReadMessages(ctx)
 	if err != nil {
 		return []types.Message{}, err
 	}
@@ -187,4 +189,45 @@ func (ms *MessageStorage) GetLastMessages(traceID string, limit int) ([]types.Me
 
 	startIndex := len(allMessages) - limit
 	return allMessages[startIndex:], nil
+}
+
+// Legacy types and functions for backward compatibility during migration
+
+// MessageStorage is kept for backward compatibility but uses functional storage internally
+type MessageStorage struct {
+	filename string // Not used in functional implementation
+}
+
+// GetDefaultStorage returns a compatibility wrapper around the functional storage
+func GetDefaultStorage() *MessageStorage {
+	return &MessageStorage{filename: defaultFilename}
+}
+
+// NewMessageStorage creates a compatibility wrapper (filename is ignored)
+func NewMessageStorage(filename string) *MessageStorage {
+	return &MessageStorage{filename: filename}
+}
+
+// AddMessage is a compatibility method that calls the functional version
+func (ms *MessageStorage) AddMessage(user, message string) error {
+	ctx := context.Background()
+	return AddMessage(ctx, user, message)
+}
+
+// ReadMessages is a compatibility method that calls the functional version
+func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) {
+	ctx := context.WithValue(context.Background(), middleware.TraceIDKey, traceID)
+	return ReadMessages(ctx)
+}
+
+// ClearMessages is a compatibility method that calls the functional version
+func (ms *MessageStorage) ClearMessages() error {
+	ctx := context.Background()
+	return ClearMessages(ctx)
+}
+
+// GetLastMessages is a compatibility method that calls the functional version
+func (ms *MessageStorage) GetLastMessages(traceID string, limit int) ([]types.Message, error) {
+	ctx := context.WithValue(context.Background(), middleware.TraceIDKey, traceID)
+	return GetLastMessages(ctx, limit)
 }
