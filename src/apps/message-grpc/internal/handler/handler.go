@@ -16,14 +16,11 @@ import (
 // MessageHandler implements the MessageService gRPC service
 type MessageHandler struct {
 	pb.UnimplementedMessageServiceServer
-	storage *storage.MessageStorage
 }
 
 // NewMessageHandler creates a new MessageHandler instance
-func NewMessageHandler(storage *storage.MessageStorage) *MessageHandler {
-	return &MessageHandler{
-		storage: storage,
-	}
+func NewMessageHandler() *MessageHandler {
+	return &MessageHandler{}
 }
 
 // Save implements the Save RPC method
@@ -41,7 +38,7 @@ func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (
 	}
 
 	// Save message using storage service
-	err := h.storage.AddMessage(req.User, req.Message)
+	err := storage.AddMessage(ctx, req.User, req.Message)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to save message",
 			"error", err,
@@ -64,7 +61,7 @@ func (h *MessageHandler) GetLast10(ctx context.Context, req *emptypb.Empty) (*pb
 	slog.InfoContext(ctx, "Received GetLast10 request", "traceID", traceID)
 
 	// Read messages from storage
-	messages, err := h.storage.GetLastMessages(traceID, 10)
+	messages, err := storage.GetLastMessages(ctx, 10)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to read messages",
 			"error", err,

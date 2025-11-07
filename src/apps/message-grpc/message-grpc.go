@@ -10,7 +10,6 @@ import (
 
 	pb "cgi.com/goLangTraining/proto/message_service"
 	"cgi.com/goLangTraining/src/apps/message-grpc/internal/handler"
-	"cgi.com/goLangTraining/src/pkg/storage"
 	"google.golang.org/grpc"
 )
 
@@ -26,9 +25,6 @@ func main() {
 		"service", "message-grpc",
 		"version", defaultAPIVersion)
 
-	// Use default storage following guidelines
-	messageStorage := storage.GetDefaultStorage()
-
 	// Create TCP listener
 	lis, err := net.Listen("tcp", port)
 	if err != nil {
@@ -40,7 +36,7 @@ func main() {
 	s := grpc.NewServer()
 
 	// Register message service
-	messageHandler := handler.NewMessageHandler(messageStorage)
+	messageHandler := handler.NewMessageHandler()
 	pb.RegisterMessageServiceServer(s, messageHandler)
 
 	slog.Info("Starting gRPC Message Store Server",

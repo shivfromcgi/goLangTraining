@@ -58,7 +58,7 @@ var (
 )
 
 // NewWebSocketHandler returns a WebSocket handler function
-func NewWebSocketHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
+func NewWebSocketHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceID := middleware.GetTraceID(r.Context())
 
@@ -97,7 +97,7 @@ func NewWebSocketHandler(messageStorage *storage.MessageStorage) http.HandlerFun
 		hub.Register(client)
 
 		// Send last 10 messages as history first
-		messages, err := messageStorage.GetLastMessages(traceID, 10)
+		messages, err := storage.GetLastMessages(r.Context(), 10)
 		if err != nil {
 			slog.ErrorContext(r.Context(), "Failed to get messages for WebSocket", "error", err)
 		} else {

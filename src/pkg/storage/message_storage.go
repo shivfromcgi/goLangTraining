@@ -159,7 +159,6 @@ func parseMessageLine(line string, id int, traceID string) *types.Message {
 
 	timestamp, err := time.Parse(time.RFC3339, timestampStr)
 	if err != nil {
-		// Try parsing old format for backward compatibility
 		timestamp, err = time.Parse("2006-01-02 15:04:05", timestampStr)
 		if err != nil {
 			// If timestamp parsing fails, use current time in UTC
@@ -189,45 +188,4 @@ func GetLastMessages(ctx context.Context, limit int) ([]types.Message, error) {
 
 	startIndex := len(allMessages) - limit
 	return allMessages[startIndex:], nil
-}
-
-// Legacy types and functions for backward compatibility during migration
-
-// MessageStorage is kept for backward compatibility but uses functional storage internally
-type MessageStorage struct {
-	filename string // Not used in functional implementation
-}
-
-// GetDefaultStorage returns a compatibility wrapper around the functional storage
-func GetDefaultStorage() *MessageStorage {
-	return &MessageStorage{filename: defaultFilename}
-}
-
-// NewMessageStorage creates a compatibility wrapper (filename is ignored)
-func NewMessageStorage(filename string) *MessageStorage {
-	return &MessageStorage{filename: filename}
-}
-
-// AddMessage is a compatibility method that calls the functional version
-func (ms *MessageStorage) AddMessage(user, message string) error {
-	ctx := context.Background()
-	return AddMessage(ctx, user, message)
-}
-
-// ReadMessages is a compatibility method that calls the functional version
-func (ms *MessageStorage) ReadMessages(traceID string) ([]types.Message, error) {
-	ctx := context.WithValue(context.Background(), middleware.TraceIDKey, traceID)
-	return ReadMessages(ctx)
-}
-
-// ClearMessages is a compatibility method that calls the functional version
-func (ms *MessageStorage) ClearMessages() error {
-	ctx := context.Background()
-	return ClearMessages(ctx)
-}
-
-// GetLastMessages is a compatibility method that calls the functional version
-func (ms *MessageStorage) GetLastMessages(traceID string, limit int) ([]types.Message, error) {
-	ctx := context.WithValue(context.Background(), middleware.TraceIDKey, traceID)
-	return GetLastMessages(ctx, limit)
 }

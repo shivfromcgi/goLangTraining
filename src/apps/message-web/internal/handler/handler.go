@@ -21,13 +21,12 @@ const (
 
 // WebHandler contains dependencies for web interface handlers
 type WebHandler struct {
-	storage          *storage.MessageStorage
 	htmlFiles        embed.FS
 	messagesTemplate *template.Template
 }
 
 // NewWebHandler creates a new WebHandler instance
-func NewWebHandler(storage *storage.MessageStorage, htmlFiles embed.FS) (*WebHandler, error) {
+func NewWebHandler(htmlFiles embed.FS) (*WebHandler, error) {
 	// Parse messages template once at startup
 	messagesTemplate, err := template.ParseFS(htmlFiles, "html/messages.html")
 	if err != nil {
@@ -35,7 +34,6 @@ func NewWebHandler(storage *storage.MessageStorage, htmlFiles embed.FS) (*WebHan
 	}
 
 	return &WebHandler{
-		storage:          storage,
 		htmlFiles:        htmlFiles,
 		messagesTemplate: messagesTemplate,
 	}, nil
@@ -78,7 +76,7 @@ func (h *WebHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	resultChan := make(chan result, 1)
 
 	go func() {
-		messages, err := h.storage.GetLastMessages(traceID, 10)
+		messages, err := storage.GetLastMessages(r.Context(), 10)
 		resultChan <- result{messages: messages, err: err}
 	}()
 

@@ -14,7 +14,6 @@ import (
 
 	"cgi.com/goLangTraining/src/apps/message-web/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/middleware"
-	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/version"
 )
 
@@ -41,10 +40,7 @@ func main() {
 	port := flag.Int("port", defaultPort, "Port for HTTP server")
 	flag.Parse()
 
-	// Use default storage following guidelines
-	messageStorage := storage.GetDefaultStorage()
-
-	startWebServer(*port, messageStorage)
+	startWebServer(*port)
 }
 
 // setupLogging configures the default slog logger following guidelines
@@ -59,8 +55,8 @@ func setupLogging() {
 }
 
 // startWebServer starts the web server with ServeMux routing
-func startWebServer(port int, messageStorage *storage.MessageStorage) {
-	webHandler, err := handler.NewWebHandler(messageStorage, htmlFiles)
+func startWebServer(port int) {
+	webHandler, err := handler.NewWebHandler(htmlFiles)
 	if err != nil {
 		slog.Error("Failed to create web handler", "error", err)
 		os.Exit(1)

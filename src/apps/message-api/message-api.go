@@ -14,7 +14,6 @@ import (
 	"cgi.com/goLangTraining/src/apps/message-api/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/hub"
 	"cgi.com/goLangTraining/src/pkg/middleware"
-	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -52,24 +51,21 @@ func main() {
 
 	slog.Info("Starting CGI Message API Service")
 
-	// Use default storage following guidelines
-	messageStorage := storage.GetDefaultStorage()
-
 	// Create and start the message hub for real-time broadcasting
 	hub.Start()
 
-	startAPIServer(*port, messageStorage)
+	startAPIServer(*port)
 }
 
 // startAPIServer starts the API server with mux routing
-func startAPIServer(port int, messageStorage *storage.MessageStorage) {
+func startAPIServer(port int) {
 	// Use mux router following guidelines
 	r := mux.NewRouter()
 
 	// Create handlers with dependencies
-	messagesHandler := handler.NewMessagesHandler(messageStorage)
+	messagesHandler := handler.NewMessagesHandler()
 	healthHandler := handler.NewHealthHandler()
-	wsHandler := handler.NewWebSocketHandler(messageStorage)
+	wsHandler := handler.NewWebSocketHandler()
 
 	// Apply request size limit and trace middleware
 	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)
@@ -79,7 +75,6 @@ func startAPIServer(port int, messageStorage *storage.MessageStorage) {
 	r.Handle("/api/v1/health", middleware.TraceMiddleware(healthHandler))
 	r.Handle("/ws", middleware.TraceMiddleware(wsHandler))
 
-	// Legacy routes for backward compatibility
 	r.Handle("/messages", requestLimitMiddleware(middleware.TraceMiddleware(messagesHandler)))
 	r.Handle("/health", middleware.TraceMiddleware(healthHandler))
 

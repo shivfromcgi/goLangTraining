@@ -37,13 +37,13 @@ func writeJSONResponse(w http.ResponseWriter, ctx context.Context, statusCode in
 }
 
 // NewMessagesHandler returns a handler function for message-related requests
-func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
+func NewMessagesHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			createMessage(w, r, messageStorage)
+			createMessage(w, r)
 		case http.MethodGet:
-			getMessages(w, r, messageStorage)
+			getMessages(w, r)
 		default:
 			// Inline error response
 			writeJSONResponse(w, r.Context(), http.StatusMethodNotAllowed, types.EmptyResponse{
@@ -56,7 +56,7 @@ func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc
 }
 
 // createMessage handles POST requests to create a new message
-func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
+func createMessage(w http.ResponseWriter, r *http.Request) {
 	traceID := middleware.GetTraceID(r.Context())
 
 	var req types.CreateMessageRequest
@@ -102,7 +102,7 @@ func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *stora
 	}
 
 	// Save message to storage
-	err := messageStorage.AddMessage(req.User, req.Message)
+	err := storage.AddMessage(r.Context(), req.User, req.Message)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Failed to save message", "error", err, "user", req.User)
 		// Inline error response
@@ -130,7 +130,7 @@ func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *stora
 }
 
 // getMessages handles GET requests to retrieve messages
-func getMessages(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
+func getMessages(w http.ResponseWriter, r *http.Request) {
 	traceID := middleware.GetTraceID(r.Context())
 
 	// Parse limit parameter with validation
@@ -159,7 +159,7 @@ func getMessages(w http.ResponseWriter, r *http.Request, messageStorage *storage
 	}
 
 	// Fetch messages from storage
-	messages, err := messageStorage.GetLastMessages(traceID, limit)
+	messages, err := storage.GetLastMessages(r.Context(), limit)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Failed to retrieve messages", "error", err, "limit", limit)
 		// Inline error response
