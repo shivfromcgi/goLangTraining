@@ -55,25 +55,21 @@ func main() {
 	// Use default storage following guidelines
 	messageStorage := storage.GetDefaultStorage()
 
-	// Create context for graceful shutdown
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// Create and start the message hub for real-time broadcasting
+	hub.Start()
 
-	// Create and start the message hub for real-time broadcasting using functional approach
-	hubChannels := hub.Start(ctx, logger)
-
-	startAPIServer(*port, messageStorage, hubChannels)
+	startAPIServer(*port, messageStorage)
 }
 
 // startAPIServer starts the API server with mux routing
-func startAPIServer(port int, messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) {
+func startAPIServer(port int, messageStorage *storage.MessageStorage) {
 	// Use mux router following guidelines
 	r := mux.NewRouter()
 
 	// Create handlers with dependencies
-	messagesHandler := handler.NewMessagesHandler(messageStorage, hubChannels)
+	messagesHandler := handler.NewMessagesHandler(messageStorage)
 	healthHandler := handler.NewHealthHandler()
-	wsHandler := handler.NewWebSocketHandler(messageStorage, hubChannels)
+	wsHandler := handler.NewWebSocketHandler(messageStorage)
 
 	// Apply request size limit and trace middleware
 	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)
@@ -114,7 +110,10 @@ func startAPIServer(port int, messageStorage *storage.MessageStorage, hubChannel
 
 	slog.Info("API server shutting down...")
 
-	// Graceful shutdown
+	// Stop the hub gracefully
+	hub.Stop()
+
+	// Graceful shutdown with context for server
 	ctx, cancel := context.WithTimeout(context.Background(), gracefulShutdownTimeout)
 	defer cancel()
 

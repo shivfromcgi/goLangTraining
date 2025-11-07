@@ -3,6 +3,7 @@ package hub
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -17,12 +18,11 @@ type Client struct {
 	cancel context.CancelFunc
 }
 
-// HubChannels contains all channels needed for the Actor pattern
-type HubChannels struct {
-	Register   chan *Client
-	Unregister chan *Client
-	Broadcast  chan []byte
-	Shutdown   chan struct{}
+// Hub channels for Actor pattern - kept private with methods for access
+type hubChannels struct {
+	register   chan *Client
+	unregister chan *Client
+	broadcast  chan []byte
 }
 
 // WebSocket configuration constants
@@ -33,83 +33,95 @@ const (
 	maxMessageSize = 512
 )
 
+var (
+	// Singleton hub instance
+	instance     *hubChannels
+	instanceOnce sync.Once
+	hubCtx       context.Context
+	hubCancel    context.CancelFunc
+)
+
 // Start creates and runs the hub using Actor/CSP pattern with static functions
 // Following coding standards: no OO patterns, static singleton approach
-func Start(ctx context.Context, logger *slog.Logger) *HubChannels {
-	channels := &HubChannels{
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan []byte),
-		Shutdown:   make(chan struct{}),
+func Start() {
+	instanceOnce.Do(func() {
+		instance = &hubChannels{
+			register:   make(chan *Client),
+			unregister: make(chan *Client),
+			broadcast:  make(chan []byte),
+		}
+
+		// Create context for hub lifecycle management
+		hubCtx, hubCancel = context.WithCancel(context.Background())
+
+		// Start the Actor goroutine
+		go runHubActor()
+	})
+}
+
+// Stop shuts down the hub gracefully
+func Stop() {
+	if hubCancel != nil {
+		hubCancel()
 	}
-
-	// Start the Actor goroutine
-	go runHubActor(ctx, channels, logger)
-
-	return channels
 }
 
 // runHubActor implements the Actor pattern using channels for communication
 // Single goroutine ensures thread-safe access without need for mutexes
-func runHubActor(ctx context.Context, channels *HubChannels, logger *slog.Logger) {
+func runHubActor() {
 	clients := make(map[*Client]bool)
 
-	slog.InfoContext(ctx, "Starting message hub with CSP pattern")
+	slog.Info("Starting message hub with CSP pattern")
 
 	for {
 		select {
-		case <-ctx.Done():
-			shutdownAllClients(clients, logger)
+		case <-hubCtx.Done():
+			shutdownAllClients(clients)
 			return
 
-		case client := <-channels.Register:
-			registerClient(ctx, clients, client, channels, logger)
+		case client := <-instance.register:
+			registerClient(clients, client)
 
-		case client := <-channels.Unregister:
-			unregisterClient(ctx, clients, client, logger)
+		case client := <-instance.unregister:
+			unregisterClient(clients, client)
 
-		case message := <-channels.Broadcast:
-			broadcastMessage(ctx, clients, message, logger)
-
-		case <-channels.Shutdown:
-			slog.InfoContext(ctx, "Hub shutting down")
-			shutdownAllClients(clients, logger)
-			return
+		case message := <-instance.broadcast:
+			broadcastMessage(clients, message)
 		}
 	}
 }
 
 // registerClient adds a new client to the hub
-func registerClient(ctx context.Context, clients map[*Client]bool, client *Client, channels *HubChannels, logger *slog.Logger) {
+func registerClient(clients map[*Client]bool, client *Client) {
 	clients[client] = true
 	clientCount := len(clients)
 
-	slog.InfoContext(ctx, "Client registered",
+	slog.Info("Client registered",
 		"clientID", client.ID,
 		"totalClients", clientCount)
 
 	// Start client goroutines
-	go startWritePump(client, logger)
-	go startReadPump(client, channels, logger)
+	go startWritePump(client)
+	go startReadPump(client)
 }
 
 // unregisterClient removes a client from the hub
-func unregisterClient(ctx context.Context, clients map[*Client]bool, client *Client, logger *slog.Logger) {
+func unregisterClient(clients map[*Client]bool, client *Client) {
 	if _, ok := clients[client]; ok {
 		delete(clients, client)
 		close(client.Send)
 		clientCount := len(clients)
 
-		slog.InfoContext(ctx, "Client unregistered",
+		slog.Info("Client unregistered",
 			"clientID", client.ID,
 			"totalClients", clientCount)
 	}
 }
 
 // broadcastMessage sends a message to all connected clients (fan-out pattern)
-func broadcastMessage(ctx context.Context, clients map[*Client]bool, message []byte, logger *slog.Logger) {
+func broadcastMessage(clients map[*Client]bool, message []byte) {
 	clientCount := len(clients)
-	slog.InfoContext(ctx, "Broadcasting message to clients",
+	slog.Info("Broadcasting message to clients",
 		"clientCount", clientCount,
 		"messageSize", len(message))
 
@@ -122,47 +134,49 @@ func broadcastMessage(ctx context.Context, clients map[*Client]bool, message []b
 			// Client's send channel is full, remove the client
 			delete(clients, client)
 			close(client.Send)
-			slog.WarnContext(ctx, "Client removed due to full send buffer", "clientID", client.ID)
+			slog.Warn("Client removed due to full send buffer", "clientID", client.ID)
 		}
 	}
 }
 
 // shutdownAllClients closes all client connections
-func shutdownAllClients(clients map[*Client]bool, logger *slog.Logger) {
+func shutdownAllClients(clients map[*Client]bool) {
 	for client := range clients {
 		close(client.Send)
 		client.cancel()
 		delete(clients, client)
 	}
-	// This is called during shutdown, so we'll use a background context
-	slog.InfoContext(context.Background(), "All clients disconnected")
+	slog.Info("All clients disconnected")
 }
 
-// BroadcastMessage sends a message to all connected clients via channels
-func BroadcastMessage(channels *HubChannels, message []byte, logger *slog.Logger) {
-	select {
-	case channels.Broadcast <- message:
-		// Message queued for broadcast
-	default:
-		logger.Warn("Broadcast channel full, message dropped")
+// Register adds a client to the hub via the register channel
+func Register(client *Client) {
+	if instance != nil {
+		instance.register <- client
 	}
 }
 
-// GetClientCount returns the number of connected clients (for monitoring)
-// Note: This is approximate as it requires a channel operation
-func GetClientCount(channels *HubChannels) int {
-	// In Actor pattern, we don't expose internal state directly
-	// This would require adding a query channel if needed
-	return 0 // Not implemented to maintain Actor pattern purity
+// Unregister removes a client from the hub via the unregister channel
+func Unregister(client *Client) {
+	if instance != nil {
+		instance.unregister <- client
+	}
 }
 
-// Shutdown gracefully shuts down the hub
-func Shutdown(channels *HubChannels) {
-	close(channels.Shutdown)
+// Broadcast sends a message to all connected clients via the broadcast channel
+func Broadcast(message []byte) {
+	if instance != nil {
+		select {
+		case instance.broadcast <- message:
+			// Message queued for broadcast
+		default:
+			slog.Warn("Broadcast channel full, message dropped")
+		}
+	}
 }
 
 // startWritePump pumps messages from the hub to the websocket connection
-func startWritePump(client *Client, logger *slog.Logger) {
+func startWritePump(client *Client) {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
@@ -176,36 +190,59 @@ func startWritePump(client *Client, logger *slog.Logger) {
 			return
 
 		case message, ok := <-client.Send:
-			client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			err := client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				slog.Error("Failed to set write deadline", "error", err, "clientID", client.ID)
+				return
+			}
+
 			if !ok {
 				// The hub closed the channel
-				client.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				err := client.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				if err != nil {
+					slog.Error("Failed to write close message", "error", err, "clientID", client.ID)
+				}
 				return
 			}
 
 			w, err := client.Conn.NextWriter(websocket.TextMessage)
 			if err != nil {
-				slog.ErrorContext(client.ctx, "Failed to get next writer", "error", err, "clientID", client.ID)
+				slog.Error("Failed to get next writer", "error", err, "clientID", client.ID)
 				return
 			}
 
-			w.Write(message)
+			_, err = w.Write(message)
+			if err != nil {
+				slog.Error("Failed to write message", "error", err, "clientID", client.ID)
+				return
+			}
 
 			// Add queued messages to the current websocket message
 			n := len(client.Send)
 			for i := 0; i < n; i++ {
-				w.Write(<-client.Send)
+				_, err = w.Write(<-client.Send)
+				if err != nil {
+					slog.Error("Failed to write queued message", "error", err, "clientID", client.ID)
+					return
+				}
 			}
 
 			if err := w.Close(); err != nil {
-				slog.ErrorContext(client.ctx, "Failed to close writer", "error", err, "clientID", client.ID)
+				slog.Error("Failed to close writer", "error", err, "clientID", client.ID)
 				return
 			}
 
 		case <-ticker.C:
-			client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := client.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				slog.ErrorContext(client.ctx, "Failed to send ping", "error", err, "clientID", client.ID)
+			err := client.Conn.SetWriteDeadline(time.Now().Add(writeWait))
+			if err != nil {
+				slog.Error("Failed to set write deadline for ping", "error", err, "clientID", client.ID)
+				return
+			}
+
+			// Split error handling onto two lines per style guide
+			err = client.Conn.WriteMessage(websocket.PingMessage, nil)
+			if err != nil {
+				slog.Error("Failed to send ping", "error", err, "clientID", client.ID)
 				return
 			}
 		}
@@ -213,18 +250,24 @@ func startWritePump(client *Client, logger *slog.Logger) {
 }
 
 // startReadPump pumps messages from the websocket connection to the hub
-func startReadPump(client *Client, channels *HubChannels, logger *slog.Logger) {
+func startReadPump(client *Client) {
 	defer func() {
-		channels.Unregister <- client
+		Unregister(client)
 		client.Conn.Close()
 		client.cancel()
 	}()
 
 	client.Conn.SetReadLimit(maxMessageSize)
-	client.Conn.SetReadDeadline(time.Now().Add(pongWait))
+
+	err := client.Conn.SetReadDeadline(time.Now().Add(pongWait))
+	if err != nil {
+		slog.Error("Failed to set read deadline", "error", err, "clientID", client.ID)
+		return
+	}
+
 	client.Conn.SetPongHandler(func(string) error {
-		client.Conn.SetReadDeadline(time.Now().Add(pongWait))
-		return nil
+		err := client.Conn.SetReadDeadline(time.Now().Add(pongWait))
+		return err
 	})
 
 	for {
@@ -234,9 +277,9 @@ func startReadPump(client *Client, channels *HubChannels, logger *slog.Logger) {
 		default:
 			_, _, err := client.Conn.ReadMessage()
 			if err != nil {
-				// Fix: Log all errors EXCEPT close going away and close abnormal closure
+				// Log all errors EXCEPT close going away and close abnormal closure
 				if !websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					slog.ErrorContext(client.ctx, "WebSocket error", "error", err, "clientID", client.ID)
+					slog.Error("WebSocket error", "error", err, "clientID", client.ID)
 				}
 				return
 			}

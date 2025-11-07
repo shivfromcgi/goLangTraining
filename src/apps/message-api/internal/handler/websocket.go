@@ -58,7 +58,7 @@ var (
 )
 
 // NewWebSocketHandler returns a WebSocket handler function
-func NewWebSocketHandler(messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) http.HandlerFunc {
+func NewWebSocketHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		traceID := middleware.GetTraceID(r.Context())
 
@@ -94,7 +94,7 @@ func NewWebSocketHandler(messageStorage *storage.MessageStorage, hubChannels *hu
 		client := hub.NewClient(traceID, conn)
 
 		// Register client with hub using functional approach
-		hubChannels.Register <- client
+		hub.Register(client)
 
 		// Send last 10 messages as history first
 		messages, err := messageStorage.GetLastMessages(traceID, 10)

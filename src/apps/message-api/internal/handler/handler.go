@@ -37,11 +37,11 @@ func writeJSONResponse(w http.ResponseWriter, ctx context.Context, statusCode in
 }
 
 // NewMessagesHandler returns a handler function for message-related requests
-func NewMessagesHandler(messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) http.HandlerFunc {
+func NewMessagesHandler(messageStorage *storage.MessageStorage) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodPost:
-			createMessage(w, r, messageStorage, hubChannels)
+			createMessage(w, r, messageStorage)
 		case http.MethodGet:
 			getMessages(w, r, messageStorage)
 		default:
@@ -56,7 +56,7 @@ func NewMessagesHandler(messageStorage *storage.MessageStorage, hubChannels *hub
 }
 
 // createMessage handles POST requests to create a new message
-func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage, hubChannels *hub.HubChannels) {
+func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *storage.MessageStorage) {
 	traceID := middleware.GetTraceID(r.Context())
 
 	var req types.CreateMessageRequest
@@ -118,7 +118,7 @@ func createMessage(w http.ResponseWriter, r *http.Request, messageStorage *stora
 		time.Now().Format("2006-01-02 15:04:05"),
 		req.User,
 		req.Message)
-	hub.BroadcastMessage(hubChannels, []byte(messageText), slog.Default())
+	hub.Broadcast([]byte(messageText))
 
 	slog.InfoContext(r.Context(), "Message created and broadcasted successfully", "user", req.User)
 
