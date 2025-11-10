@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -13,24 +14,28 @@ import (
 	"strings"
 	"syscall"
 
+	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/types"
 	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/websocket"
 )
 
 const (
-	defaultServerURL = "ws://localhost:8080/ws"
-	defaultAPIURL    = "http://localhost:8080/api/v1/messages"
+	defaultServerURL  = "ws://localhost:8080/ws"
+	defaultAPIURL     = "http://localhost:8080/api/v1/messages"
+	defaultGRPCServer = "localhost:50051"
 )
 
 func main() {
 	// Declare flags at top following guidelines
 	var (
-		serverURL = flag.String("server", defaultServerURL, "WebSocket server URL")
-		apiURL    = flag.String("api", defaultAPIURL, "HTTP API URL for posting messages")
-		user      = flag.String("user", "", "User name for posting message (required with -message)")
-		message   = flag.String("message", "", "Message to post (requires -user)")
-		listen    = flag.Bool("listen", false, "Listen for real-time messages via WebSocket")
+		serverURL  = flag.String("server", defaultServerURL, "WebSocket server URL")
+		apiURL     = flag.String("api", defaultAPIURL, "HTTP API URL for posting messages")
+		grpcServer = flag.String("grpc-server", defaultGRPCServer, "gRPC message store server address")
+		user       = flag.String("user", "", "User name for posting message (required with -message)")
+		message    = flag.String("message", "", "Message to post (requires -user)")
+		listen     = flag.Bool("listen", false, "Listen for real-time messages via WebSocket")
+		useGRPC    = flag.Bool("use-grpc", true, "Use gRPC to save messages directly to store (default: true)")
 	)
 	flag.Parse()
 
@@ -46,10 +51,26 @@ func main() {
 
 	slog.Info("Starting CGI Message CLI")
 
+	// Initialize gRPC client if using gRPC mode
+	if *useGRPC {
+		if err := storage.InitGRPCClient(*grpcServer); err != nil {
+			slog.Error("Failed to initialize gRPC client", "error", err, "server", *grpcServer)
+			os.Exit(1)
+		}
+		defer storage.CloseGRPCClient()
+	}
+
 	// Determine mode of operation
 	if *user != "" && *message != "" {
 		// Post message mode
-		if err := postMessage(*apiURL, *user, *message); err != nil {
+		var err error
+		if *useGRPC {
+			err = postMessageViaGRPC(*user, *message)
+		} else {
+			err = postMessage(*apiURL, *user, *message)
+		}
+
+		if err != nil {
 			slog.Error("Failed to post message", "error", err)
 			os.Exit(1)
 		}
@@ -139,6 +160,42 @@ func connectToWebSocket(serverURL string) error {
 	}
 
 	slog.Info("CLI client exited cleanly")
+	return nil
+}
+
+// postMessageViaGRPC sends a message directly to the gRPC store
+func postMessageViaGRPC(user, message string) error {
+	slog.Info("Posting message via gRPC", "user", user)
+
+	// Validate input
+	if strings.TrimSpace(user) == "" || strings.TrimSpace(message) == "" {
+		return fmt.Errorf("user and message cannot be empty")
+	}
+
+	// Use storage package's gRPC client
+	ctx := context.Background()
+	err := storage.AddMessage(ctx, user, message)
+	if err != nil {
+		return fmt.Errorf("failed to save message via gRPC: %w", err)
+	}
+
+	slog.Info("Message posted successfully via gRPC", "user", user)
+
+	// Retrieve and display last 10 messages
+	messages, err := storage.GetLastMessages(ctx, 10)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve messages: %w", err)
+	}
+
+	fmt.Println("\n=== Last 10 Messages ===")
+	for _, msg := range messages {
+		fmt.Printf("[%s] %s: %s\n",
+			msg.Timestamp.Format("2006-01-02 15:04:05"),
+			msg.User,
+			msg.Message)
+	}
+	fmt.Println()
+
 	return nil
 }
 

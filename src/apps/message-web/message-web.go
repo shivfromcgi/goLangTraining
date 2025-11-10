@@ -14,6 +14,7 @@ import (
 
 	"cgi.com/goLangTraining/src/apps/message-web/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/middleware"
+	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/version"
 )
 
@@ -25,6 +26,7 @@ var htmlFiles embed.FS
 const (
 	gracefulShutdownTimeout = 30 * time.Second
 	defaultPort             = 8090
+	defaultGRPCServer       = "localhost:50051"
 
 	// Server configuration constants
 	readTimeout  = 15 * time.Second
@@ -37,8 +39,18 @@ func main() {
 
 	slog.Info("Starting CGI Message Web Service")
 
-	port := flag.Int("port", defaultPort, "Port for HTTP server")
+	var (
+		port       = flag.Int("port", defaultPort, "Port for HTTP server")
+		grpcServer = flag.String("grpc-server", defaultGRPCServer, "gRPC message store server address")
+	)
 	flag.Parse()
+
+	// Initialize gRPC client connection to message store
+	if err := storage.InitGRPCClient(*grpcServer); err != nil {
+		slog.Error("Failed to initialize gRPC client", "error", err, "server", *grpcServer)
+		os.Exit(1)
+	}
+	defer storage.CloseGRPCClient()
 
 	startWebServer(*port)
 }

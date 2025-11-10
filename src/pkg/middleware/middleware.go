@@ -12,10 +12,12 @@ type contextKey string
 
 const TraceIDKey contextKey = "traceID"
 
-// TraceMiddleware creates trace ID from headers or generates new one
+// TraceMiddleware reads trace ID from request headers or generates new one
+// and adds it to the request context. It does NOT write to response headers -
+// handlers can optionally add trace ID to response headers if needed.
 func TraceMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Check for existing trace ID in headers
+		// Check for existing trace ID in request headers
 		traceID := r.Header.Get("X-Trace-ID")
 		if traceID == "" {
 			// Generate new trace ID if none provided
@@ -24,9 +26,6 @@ func TraceMiddleware(next http.Handler) http.Handler {
 
 		// Add trace ID to context
 		ctx := context.WithValue(r.Context(), TraceIDKey, traceID)
-
-		// Set trace ID in response headers
-		w.Header().Set("X-Trace-ID", traceID)
 
 		// Log incoming request with context
 		slog.InfoContext(ctx, "Incoming HTTP request",

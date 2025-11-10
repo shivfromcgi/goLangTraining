@@ -65,8 +65,11 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	connectionCounter.mu.Lock()
 	if connectionCounter.count >= maxConnections {
 		connectionCounter.mu.Unlock()
-		slog.WarnContext(r.Context(), "WebSocket connection limit reached", "limit", maxConnections)
-		http.Error(w, "Too many connections", http.StatusTooManyRequests)
+		slog.WarnContext(r.Context(), "WebSocket connection limit reached", "limit", maxConnections, "traceID", traceID)
+		// Add trace ID to response headers even for errors
+		w.Header().Set("X-Trace-ID", traceID)
+		w.WriteHeader(http.StatusTooManyRequests)
+		// No body - don't expose internal state
 		return
 	}
 	connectionCounter.count++
@@ -79,15 +82,15 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 		connectionCounter.mu.Unlock()
 	}()
 
-	slog.InfoContext(r.Context(), "WebSocket connection attempt")
+	slog.InfoContext(r.Context(), "WebSocket connection attempt", "traceID", traceID)
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to upgrade to WebSocket", "error", err)
+		slog.ErrorContext(r.Context(), "Failed to upgrade to WebSocket", "error", err, "traceID", traceID)
 		return
 	}
 
-	slog.InfoContext(r.Context(), "WebSocket connection established")
+	slog.InfoContext(r.Context(), "WebSocket connection established", "traceID", traceID)
 
 	// Create client and register with hub for real-time message broadcasting
 	client := hub.NewClient(traceID, conn)
@@ -98,7 +101,7 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 	// Send last 10 messages as history first
 	messages, err := storage.GetLastMessages(r.Context(), 10)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Failed to get messages for WebSocket", "error", err)
+		slog.ErrorContext(r.Context(), "Failed to get messages for WebSocket", "error", err, "traceID", traceID)
 	} else {
 		for _, msg := range messages {
 			messageText := fmt.Sprintf("[%s] %s: %s",
@@ -110,11 +113,11 @@ func WebSocketHandler(w http.ResponseWriter, r *http.Request) {
 			case client.Send <- []byte(messageText):
 			default:
 				// Channel is full, skip message
-				slog.WarnContext(r.Context(), "Client send channel full, skipping historical message")
+				slog.WarnContext(r.Context(), "Client send channel full, skipping historical message", "traceID", traceID)
 			}
 		}
 	}
 
 	// Client goroutines are started automatically by the hub when client is registered
-	slog.InfoContext(r.Context(), "WebSocket client connected to real-time hub", "historical_messages", len(messages))
+	slog.InfoContext(r.Context(), "WebSocket client connected to real-time hub", "historical_messages", len(messages), "traceID", traceID)
 }

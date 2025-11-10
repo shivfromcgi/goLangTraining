@@ -35,8 +35,8 @@ func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (
 		return nil, status.Error(codes.InvalidArgument, "user and message are required")
 	}
 
-	// Save message using storage service
-	err := storage.AddMessage(ctx, req.User, req.Message)
+	// Save message using storage service (direct file access - gRPC service is the data store)
+	err := storage.AddMessageToFile(ctx, req.User, req.Message)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to save message",
 			"error", err,
@@ -58,8 +58,8 @@ func (h *MessageHandler) GetLast10(ctx context.Context, req *emptypb.Empty) (*pb
 
 	slog.InfoContext(ctx, "Received GetLast10 request", "traceID", traceID)
 
-	// Read messages from storage
-	messages, err := storage.GetLastMessages(ctx, 10)
+	// Read messages from storage (direct file access - gRPC service is the data store)
+	messages, err := storage.GetLastMessagesFromFile(ctx, 10)
 	if err != nil {
 		slog.ErrorContext(ctx, "Failed to read messages",
 			"error", err,

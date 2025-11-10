@@ -32,3 +32,7 @@ coverage.out
 # Temporary files
 tmp/
 temp/
+# Generated protobuf files
+proto/message_service/*.pb.go
+proto/message_service/go.mod
+proto/message_service/go.sum

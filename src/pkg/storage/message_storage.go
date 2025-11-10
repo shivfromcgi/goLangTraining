@@ -42,8 +42,9 @@ func sanitizeInput(input string) string {
 	return strings.TrimSpace(result.String())
 }
 
-// AddMessage appends a message to the default storage file using static singleton pattern
-func AddMessage(ctx context.Context, user, message string) error {
+// AddMessageToFile appends a message to the default storage file using static singleton pattern
+// This function is used ONLY by the gRPC message store service
+func AddMessageToFile(ctx context.Context, user, message string) error {
 	fileMutex.Lock()
 	defer fileMutex.Unlock()
 
@@ -78,8 +79,9 @@ func AddMessage(ctx context.Context, user, message string) error {
 	return err
 }
 
-// ReadMessages reads all messages from default storage and returns them as Message structs
-func ReadMessages(ctx context.Context) ([]types.Message, error) {
+// ReadMessagesFromFile reads all messages from default storage and returns them as Message structs
+// This function is used ONLY by the gRPC message store service
+func ReadMessagesFromFile(ctx context.Context) ([]types.Message, error) {
 	fileMutex.RLock()
 	defer fileMutex.RUnlock()
 
@@ -175,17 +177,18 @@ func parseMessageLine(line string, id int, traceID string) *types.Message {
 	}
 }
 
-// GetLastMessages returns the last N messages from default storage
-func GetLastMessages(ctx context.Context, limit int) ([]types.Message, error) {
-	allMessages, err := ReadMessages(ctx)
+// GetLastMessagesFromFile reads the last N messages from the file
+// This function is used ONLY by the gRPC message store service
+func GetLastMessagesFromFile(ctx context.Context, limit int) ([]types.Message, error) {
+	messages, err := ReadMessagesFromFile(ctx)
 	if err != nil {
-		return []types.Message{}, err
+		return nil, err
 	}
 
-	if len(allMessages) <= limit {
-		return allMessages, nil
+	// Return last N messages
+	if limit > 0 && len(messages) > limit {
+		return messages[len(messages)-limit:], nil
 	}
 
-	startIndex := len(allMessages) - limit
-	return allMessages[startIndex:], nil
+	return messages, nil
 }

@@ -42,12 +42,15 @@ func NewWebHandler(htmlFiles embed.FS) (*WebHandler, error) {
 // IndexHandler serves the static index page
 func (h *WebHandler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := getTraceID(r)
+	w.Header().Set("X-Trace-ID", traceID)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	indexHTML, err := h.htmlFiles.ReadFile("html/index.html")
 	if err != nil {
+		// Internal error - log details but don't expose to user
 		slog.ErrorContext(r.Context(), "Failed to read index.html", "error", err, "traceID", traceID)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		// No body - don't expose internal state
 		return
 	}
 
@@ -62,6 +65,7 @@ func (h *WebHandler) IndexHandler(w http.ResponseWriter, r *http.Request) {
 // MessagesHandler serves the dynamic messages page
 func (h *WebHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := getTraceID(r)
+	w.Header().Set("X-Trace-ID", traceID)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
 	// Create timeout context for storage operation
@@ -84,14 +88,18 @@ func (h *WebHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	select {
 	case res := <-resultChan:
 		if res.err != nil {
+			// Internal error - log details but don't expose to user
 			slog.ErrorContext(r.Context(), "Failed to read messages for web page", "error", res.err, "traceID", traceID)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			w.WriteHeader(http.StatusInternalServerError)
+			// No body - don't expose internal state
 			return
 		}
 		messages = res.messages
 	case <-ctx.Done():
+		// Timeout error - log details
 		slog.ErrorContext(r.Context(), "Storage operation timed out", "timeout", storageOperationTimeout, "traceID", traceID)
-		http.Error(w, "Request timeout", http.StatusRequestTimeout)
+		w.WriteHeader(http.StatusRequestTimeout)
+		// No body - don't expose internal state
 		return
 	}
 
@@ -102,8 +110,10 @@ func (h *WebHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.messagesTemplate.Execute(w, data); err != nil {
+		// Template execution error - log details but don't expose to user
 		slog.ErrorContext(r.Context(), "Failed to execute messages template", "error", err, "traceID", traceID)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		w.WriteHeader(http.StatusInternalServerError)
+		// No body - don't expose internal state
 		return
 	}
 
@@ -115,6 +125,7 @@ func (h *WebHandler) MessagesHandler(w http.ResponseWriter, r *http.Request) {
 // HealthHandler handles health check requests
 func (h *WebHandler) HealthHandler(w http.ResponseWriter, r *http.Request) {
 	traceID := getTraceID(r)
+	w.Header().Set("X-Trace-ID", traceID)
 	w.Header().Set("Content-Type", "text/plain")
 
 	w.WriteHeader(http.StatusOK)

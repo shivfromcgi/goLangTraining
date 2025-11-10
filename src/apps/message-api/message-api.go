@@ -14,6 +14,7 @@ import (
 	"cgi.com/goLangTraining/src/apps/message-api/internal/handler"
 	"cgi.com/goLangTraining/src/pkg/hub"
 	"cgi.com/goLangTraining/src/pkg/middleware"
+	"cgi.com/goLangTraining/src/pkg/storage"
 	"cgi.com/goLangTraining/src/pkg/version"
 	"github.com/gorilla/mux"
 )
@@ -26,6 +27,7 @@ const (
 	// the container's terminationGracePeriodSeconds to ensure clean shutdown.
 	gracefulShutdownTimeout = 30 * time.Second
 	defaultPort             = 8080
+	defaultGRPCServer       = "localhost:50051"
 
 	// Server configuration constants
 	maxRequestSizeBytes = 1024 * 1024 // 1MB
@@ -36,7 +38,10 @@ const (
 
 func main() {
 	// Declare flags at top following guidelines
-	port := flag.Int("port", defaultPort, "Port for HTTP server")
+	var (
+		port       = flag.Int("port", defaultPort, "Port for HTTP server")
+		grpcServer = flag.String("grpc-server", defaultGRPCServer, "gRPC message store server address")
+	)
 	flag.Parse()
 
 	// Set up slog.SetDefault following guidelines
@@ -50,6 +55,13 @@ func main() {
 	slog.SetDefault(logger)
 
 	slog.Info("Starting CGI Message API Service")
+
+	// Initialize gRPC client connection to message store
+	if err := storage.InitGRPCClient(*grpcServer); err != nil {
+		slog.Error("Failed to initialize gRPC client", "error", err, "server", *grpcServer)
+		os.Exit(1)
+	}
+	defer storage.CloseGRPCClient()
 
 	// Create and start the message hub for real-time broadcasting
 	hub.Start()
