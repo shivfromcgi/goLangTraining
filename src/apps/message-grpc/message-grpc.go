@@ -35,9 +35,8 @@ func main() {
 	// Create gRPC server
 	s := grpc.NewServer()
 
-	// Register message service
-	messageHandler := handler.NewMessageHandler()
-	pb.RegisterMessageServiceServer(s, messageHandler)
+	// Register message service using singleton handler
+	pb.RegisterMessageServiceServer(s, handler.Handler)
 
 	slog.Info("Starting gRPC Message Store Server",
 		"port", port,

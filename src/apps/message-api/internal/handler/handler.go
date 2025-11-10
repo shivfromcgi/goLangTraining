@@ -36,22 +36,20 @@ func writeJSONResponse(w http.ResponseWriter, ctx context.Context, statusCode in
 	}
 }
 
-// NewMessagesHandler returns a handler function for message-related requests
-func NewMessagesHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		switch r.Method {
-		case http.MethodPost:
-			createMessage(w, r)
-		case http.MethodGet:
-			getMessages(w, r)
-		default:
-			// Inline error response
-			writeJSONResponse(w, r.Context(), http.StatusMethodNotAllowed, types.EmptyResponse{
-				Success: false,
-				Error:   "Method not allowed",
-				TraceID: middleware.GetTraceID(r.Context()),
-			})
-		}
+// MessagesHandler handles message-related requests
+func MessagesHandler(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodPost:
+		createMessage(w, r)
+	case http.MethodGet:
+		getMessages(w, r)
+	default:
+		// Inline error response
+		writeJSONResponse(w, r.Context(), http.StatusMethodNotAllowed, types.EmptyResponse{
+			Success: false,
+			Error:   "Method not allowed",
+			TraceID: middleware.GetTraceID(r.Context()),
+		})
 	}
 }
 
@@ -183,22 +181,20 @@ func getMessages(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// NewHealthHandler returns a handler function for health check requests
-func NewHealthHandler() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		traceID := middleware.GetTraceID(r.Context())
+// HealthHandler returns health check information
+func HealthHandler(w http.ResponseWriter, r *http.Request) {
+	traceID := middleware.GetTraceID(r.Context())
 
-		health := types.HealthStatus{
-			Status:    "OK",
-			Timestamp: time.Now().UTC(),
-			Version:   version.GetVersion(),
-		}
-
-		// Inline success response
-		writeJSONResponse(w, r.Context(), http.StatusOK, types.HealthResponse{
-			Success: true,
-			Data:    health,
-			TraceID: traceID,
-		})
+	health := types.HealthStatus{
+		Status:    "OK",
+		Timestamp: time.Now().UTC(),
+		Version:   version.GetVersion(),
 	}
+
+	// Inline success response
+	writeJSONResponse(w, r.Context(), http.StatusOK, types.HealthResponse{
+		Success: true,
+		Data:    health,
+		TraceID: traceID,
+	})
 }

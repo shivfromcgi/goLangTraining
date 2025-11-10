@@ -62,21 +62,17 @@ func startAPIServer(port int) {
 	// Use mux router following guidelines
 	r := mux.NewRouter()
 
-	// Create handlers with dependencies
-	messagesHandler := handler.NewMessagesHandler()
-	healthHandler := handler.NewHealthHandler()
-	wsHandler := handler.NewWebSocketHandler()
-
 	// Apply request size limit and trace middleware
 	requestLimitMiddleware := middleware.RequestSizeLimitMiddleware(maxRequestSizeBytes)
 
 	// API routes with proper structure
-	r.Handle("/api/v1/messages", requestLimitMiddleware(middleware.TraceMiddleware(messagesHandler)))
-	r.Handle("/api/v1/health", middleware.TraceMiddleware(healthHandler))
-	r.Handle("/ws", middleware.TraceMiddleware(wsHandler))
+	r.Handle("/api/v1/messages", requestLimitMiddleware(middleware.TraceMiddleware(http.HandlerFunc(handler.MessagesHandler))))
+	r.Handle("/api/v1/health", middleware.TraceMiddleware(http.HandlerFunc(handler.HealthHandler)))
+	r.Handle("/ws", middleware.TraceMiddleware(http.HandlerFunc(handler.WebSocketHandler)))
 
-	r.Handle("/messages", requestLimitMiddleware(middleware.TraceMiddleware(messagesHandler)))
-	r.Handle("/health", middleware.TraceMiddleware(healthHandler))
+	// Legacy routes for backward compatibility
+	r.Handle("/messages", requestLimitMiddleware(middleware.TraceMiddleware(http.HandlerFunc(handler.MessagesHandler))))
+	r.Handle("/health", middleware.TraceMiddleware(http.HandlerFunc(handler.HealthHandler)))
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),

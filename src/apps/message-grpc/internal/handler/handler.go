@@ -18,10 +18,8 @@ type MessageHandler struct {
 	pb.UnimplementedMessageServiceServer
 }
 
-// NewMessageHandler creates a new MessageHandler instance
-func NewMessageHandler() *MessageHandler {
-	return &MessageHandler{}
-}
+// Handler is the singleton instance of MessageHandler
+var Handler = &MessageHandler{}
 
 // Save implements the Save RPC method
 func (h *MessageHandler) Save(ctx context.Context, req *pb.SaveMessageRequest) (*emptypb.Empty, error) {
